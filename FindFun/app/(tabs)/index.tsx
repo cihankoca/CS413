@@ -1,10 +1,30 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ImageBackground, StyleSheet, TextInput } from 'react-native';
+import { ThemedText } from '@/components/ThemedText';
 import { useNavigation } from '@react-navigation/native';
+import * as Location from 'expo-location';
+
+type LocationObject = {
+  coords: {
+    latitude: number;
+    longitude: number;
+  };
+};
 
 const WelcomeScreen = () => {
   const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
+  const [location, setLocation] = useState<LocationObject | null>(null);
+
+  const handleShareLocation = async () => {
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      console.log('Permission to access location was denied');
+      return;
+    }
+    let currentLocation = await Location.getCurrentPositionAsync({});
+    setLocation(currentLocation as LocationObject);
+  };
 
   return (
     <ImageBackground
@@ -13,8 +33,12 @@ const WelcomeScreen = () => {
       <View style={styles.overlay}>
         <Text style={styles.title}>FindFun</Text>
 
-        <TouchableOpacity style={styles.button} onPress={() => {  }}>
-          <Text style={styles.buttonText}>Enable Location Sharing</Text>
+        <TouchableOpacity style={styles.button} onPress={handleShareLocation}>
+            <Text style={styles.buttonText}>
+              {location
+                ? `Lat: ${location.coords.latitude.toFixed(4)}, Long: ${location.coords.longitude.toFixed(4)}`
+                : 'Share location'}
+            </Text>
         </TouchableOpacity>
 
         <View style={styles.container}>
