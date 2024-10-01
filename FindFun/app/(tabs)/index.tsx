@@ -1,86 +1,85 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, TouchableOpacity, SafeAreaView } from 'react-native';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import * as Location from 'expo-location';
+import { View, Text, TouchableOpacity, ImageBackground, StyleSheet, TextInput } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
-type LocationObject = {
-  coords: {
-    latitude: number;
-    longitude: number;
-  };
-};
-
-export default function HomeScreen() {
-  const [location, setLocation] = useState<LocationObject | null>(null);
-
-  const handleShareLocation = async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      console.log('Permission to access location was denied');
-      return;
-    }
-    let currentLocation = await Location.getCurrentPositionAsync({});
-    setLocation(currentLocation as LocationObject);
-  };
+const WelcomeScreen = () => {
+  const navigation = useNavigation();
+  const [searchQuery, setSearchQuery] = useState('');
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ThemedView style={styles.container}>
-        <View style={styles.titleBar}>
-          <ThemedText style={styles.title}>FindFun</ThemedText>
-        </View>
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.button} onPress={handleShareLocation}>
-            <ThemedText style={styles.buttonText}>
-              {location
-                ? `Lat: ${location.coords.latitude.toFixed(4)}, Long: ${location.coords.longitude.toFixed(4)}`
-                : 'Share location'}
-            </ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.button}>
-            <ThemedText style={styles.buttonText}>Search by City</ThemedText>
-          </TouchableOpacity>
-        </View>
-      </ThemedView>
-    </SafeAreaView>
+    <ImageBackground
+         source={require('../../assets/images/pexels-rickyrecap-1563256.png')}
+         style={styles.background}>
+      <View style={styles.overlay}>
+        <Text style={styles.title}>FindFun</Text>
+
+        <TouchableOpacity style={styles.button} onPress={() => {  }}>
+          <Text style={styles.buttonText}>Enable Location Sharing</Text>
+        </TouchableOpacity>
+
+        <View style={styles.container}>
+              <TextInput placeholderTextColor="#ccc" style={styles.searchField}
+                placeholder="Search by City..."
+                value={searchQuery}
+                onChangeText={(text) => setSearchQuery(text)}/>
+            </View>
+      </View>
+    </ImageBackground>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  safeArea: {
+  background: {
     flex: 1,
+    width: '100%',
+    height: '100%',
   },
-  container: {
-    flex: 1,
-  },
-  titleBar: {
-    height: 100,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-    paddingBottom: 10,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-  },
-  buttonContainer: {
+  overlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  title: {
+    fontSize: 40,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 100,
   },
   button: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
+    backgroundColor: '#5465FF',
+    padding: 15,
     borderRadius: 10,
+    marginVertical: 10,
+    width: '80%',
+    alignItems: 'center',
   },
   buttonText: {
     color: 'white',
     fontSize: 18,
-    fontWeight: 'bold',
   },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 50,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '80%',
+  },
+  bottomText: {
+    color: 'white',
+    fontSize: 18,
+  },
+  searchField: {
+      width: '80%',
+      padding: 10,
+      borderWidth: 1,
+      borderColor: '#ccc',
+      borderRadius: 10,
+      fontSize: 16,
+      color: 'white',
+      backgroundColor: '#333',
+    },
 });
+export default WelcomeScreen;
+
+
