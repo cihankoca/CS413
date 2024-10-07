@@ -1,9 +1,29 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, TouchableOpacity, SafeAreaView } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import * as Location from 'expo-location';
+
+type LocationObject = {
+  coords: {
+    latitude: number;
+    longitude: number;
+  };
+};
 
 export default function HomeScreen() {
+  const [location, setLocation] = useState<LocationObject | null>(null);
+
+  const handleShareLocation = async () => {
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      console.log('Permission to access location was denied');
+      return;
+    }
+    let currentLocation = await Location.getCurrentPositionAsync({});
+    setLocation(currentLocation as LocationObject);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ThemedView style={styles.container}>
@@ -11,8 +31,12 @@ export default function HomeScreen() {
           <ThemedText style={styles.title}>FindFun</ThemedText>
         </View>
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.button}>
-            <ThemedText style={styles.buttonText}>Share location</ThemedText>
+          <TouchableOpacity style={styles.button} onPress={handleShareLocation}>
+            <ThemedText style={styles.buttonText}>
+              {location
+                ? `Lat: ${location.coords.latitude.toFixed(4)}, Long: ${location.coords.longitude.toFixed(4)}`
+                : 'Share location'}
+            </ThemedText>
           </TouchableOpacity>
           <TouchableOpacity style={styles.button}>
             <ThemedText style={styles.buttonText}>Search by City</ThemedText>
