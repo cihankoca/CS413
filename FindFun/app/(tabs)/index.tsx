@@ -13,12 +13,45 @@ type LocationObject = {
   };
 };
 
+const API_KEY = '='//zach has this
+
 const WelcomeScreen = () => {
   const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
   const [location, setLocation] = useState<LocationObject | null>(null);
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
+
+  async function foursquareTest()
+  {
+    try {
+
+
+    const options = {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+        Authorization: API_KEY
+      }
+
+    };
+    
+    var final_URL = 'https://api.foursquare.com/v3/places/search?near=Chicago%2C%20IL&sort=RELEVANCE&'; //test search that works guarantee
+
+
+    const response = await fetch(final_URL, options)
+      .then(response => response.json())
+      .then(response => console.log(response))
+      .catch(err => console.error(err));
+
+    } catch (error) {
+
+      console.error('Error fetching data from Foursquare:', error);
+
+    }
+
+  }
+
 
   useEffect(() => {
     const setupDatabase = async () => {
@@ -27,6 +60,13 @@ const WelcomeScreen = () => {
     };
     setupDatabase();
   }, []);
+
+  useEffect(() => {
+
+    foursquareTest(); //just test api call
+
+  },[]);
+
 
   const handleTestDatabase = async () => {
     if (db) {
