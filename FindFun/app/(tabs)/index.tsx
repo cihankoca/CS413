@@ -6,6 +6,9 @@ import * as Location from 'expo-location';
 import { initDatabase, addItinerary, addEvent, getItineraries, getEventsForItinerary } from '@/utils/database';
 import * as SQLite from 'expo-sqlite';
 
+const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose', 'Boston'];
+
+
 type LocationObject = {
   coords: {
     latitude: number;
@@ -18,6 +21,7 @@ const API_KEY = '='//zach has this
 const WelcomeScreen = () => {
   const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
+  const [filteredCities, setFilteredCities] = useState([]);
   const [location, setLocation] = useState<LocationObject | null>(null);
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
@@ -111,6 +115,30 @@ const WelcomeScreen = () => {
     setLocation(currentLocation as LocationObject);
   };
 
+  // Filter cities based on user input
+    const handleSearch = (text) => {
+      setSearchQuery(text);
+      if (text) {
+        const filtered = cities.filter(city =>
+          city.toLowerCase().startsWith(text.toLowerCase())
+        );
+        setFilteredCities(filtered);
+      } else {
+        setFilteredCities([]);
+      }
+    };
+
+// Handle city selection
+  const handleCitySelect = (city) => {
+    setSearchQuery(city);
+    setFilteredCities([]);
+
+    // Navigate to the City screen and pass the city name as a parameter
+    // Add this line to navigate to 'city-description'
+    navigation.navigate('CityDescription', { city });
+
+  };
+
   return (
     <ImageBackground
       source={require('../../assets/images/pexels-rickyrecap-1563256.png')}
@@ -126,22 +154,28 @@ const WelcomeScreen = () => {
           </Text>
         </TouchableOpacity>
 
+
         <View style={styles.container}>
-          <TextInput placeholderTextColor="#ccc" style={styles.searchField}
-            placeholder="Search by City..."
-            value={searchQuery}
-            onChangeText={(text) => setSearchQuery(text)} />
-        </View>
-
-        <TouchableOpacity style={styles.button} onPress={handleTestDatabase}>
-          <Text style={styles.buttonText}>Test Database</Text>
-        </TouchableOpacity>
-
-        {testResult && (
-          <View style={styles.eventContainer}>
-            <Text style={styles.eventText}>{testResult}</Text>
-          </View>
-        )}
+                  <TextInput
+                    placeholderTextColor="#ccc"
+                    style={styles.searchField}
+                    placeholder="Search by City..."
+                    value={searchQuery}
+                    onChangeText={handleSearch}
+                  />
+                  {filteredCities.length > 0 && (
+                    <FlatList
+                      style={styles.dropdown}
+                      data={filteredCities}
+                      keyExtractor={(item) => item}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity style={styles.dropdownItem} onPress={() => handleCitySelect(item)}>
+                          <Text style={styles.dropdownText}>{item}</Text>
+                        </TouchableOpacity>
+                      )}
+                    />
+                  )}
+                </View>
       </View>
     </ImageBackground>
   );
