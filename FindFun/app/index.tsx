@@ -176,6 +176,15 @@ const WelcomeScreen = () => {
                     />
                   )}
                 </View>
+                <TouchableOpacity style={styles.button} onPress={handleTestDatabase}>
+          <Text style={styles.buttonText}>Test Database</Text>
+        </TouchableOpacity>
+
+        {testResult && (
+          <View style={styles.eventContainer}>
+            <Text style={styles.eventText}>{testResult}</Text>
+          </View>
+        )}
 
       </View>
 
