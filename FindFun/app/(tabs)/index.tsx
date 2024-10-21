@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ImageBackground, StyleSheet, TextInput } 
 import { useNavigation } from '@react-navigation/native';
 
 
-const API_KEY = 'fsq3VU8AXCRv6QBKaBi5+EcmNWdypVrGRPvE/cqh4nxz4p4='
+const API_KEY = ''
 
 
 const WelcomeScreen = () => {
@@ -35,18 +35,36 @@ const WelcomeScreen = () => {
 
     //if the variable is active, make it like these below:
     var query = '?query='; //A string to be matched against all content for this place, including but not limited to venue name, category, telephone number, taste, and tips.
+    //^ if the user wants to just ask for anything. have not tested enough yet. 
+    
     var ll = '&ll=';
+    //^ should just be current location lat long (unless user changes location manually)
+   
     var radius = '&radius=';  
+    //^meter radius from ll. we can automatically resize for good results maybe?
+
     var categories = '&categories='; //Filters the response and returns FSQ Places matching the specified categories. Supports multiple Category IDs, separated by commas.
+    //^probably most important. order doesnt seem to matter, so as user requests more categories, add it here. should be finite number to be programmed in
+    
     var fields = '&fields=';
+    //^ should be hardcoded only once. We dont need *all* of the info probably. can customize for specific use cases if we want.
+
     var min_price = '&min_price=';
     var max_price = '&max_price=';
-    var open_now = '&open_now=';
+    //^just append number to the end
+    var open_now = '&open_now='; 
+    //^probably always true?
+    
     var near = '&near=';
-    var sort = '&sort=';
-    var limit = '&limit=';
+    //^can put city name? maybe dont bother and just use lat long?
 
-    //if the variable is not asked for by search, it can just be empty:
+    var sort = '&sort=';
+    //^Specifies the order in which results are listed. Possible values are: relevance (default), rating, distance
+
+    var limit = '&limit=';
+    //^limit the number of results
+
+    //if the variable is not asked for by search, it can (should?) just be empty:
     var query = ''; 
     var ll = '';
     var radius = '';  
