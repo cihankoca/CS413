@@ -1,82 +1,211 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ImageBackground, StyleSheet, TextInput, FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import * as Location from 'expo-location';
-import * as SQLite from 'expo-sqlite';
+import OpenAI from "openai";
 
-const Geocode_API_KEY = 'AIzaSyDEKPdggJUclMRlpy6bO7YIPIhzvA4qM4M';
+const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose', 'Boston'];
+
+
+//Don't commit API keys until we get them as environment variables
+const PLACES_API_KEY = ''//zach has this (also pinned in discord)
+const OPENAI_API_KEY = '' //cole has this (also pinned in discord)
+const Geocode_API_KEY = '' //zach has this 
+
+//we can use this to basically make our own categories and name them whatever. When user does a search, come here and splice the respective values together with a comma between them and add it to the API request
+const categoryMap: { [key: string]: string } = {  //took the keys from Chihan's work in the UI. Probably want to refine
+  'Food': '13065',
+  'Museum': '10027',
+  'Adventure': '',  //bunch of stuff
+  'Concert': '', 
+  //'Park': '',        //should just be part of outdoor
+  'Outdoor': '16000',  //landmark/outdoor. might have stuff we dont want (lol hill)
+  'Theater': '',           //does this mean movies or live shows? If live shows, it should be with concert somehow
+  'Nightlife': '10008,10032,10033,10052,13003',  //casino,nightclub,pachinko,strip club, bar, 
+
+
+  // Can Add more categories and their Foursquare IDs
+}; 
+
+interface SearchParams { //basically a struct for search parameters. create one and change it as user messes with options/search. Then pass it to the function and a search will be made with these params
+  query?: string;
+  ll?: string; // latitude,longitude
+  radius?: number;
+  categories?: string; // comma-separated category IDs. 
+  fields?: string; // comma-separated fields
+  min_price?: number;
+  max_price?: number;
+  open_now?: boolean;
+  near?: string;
+  sort?: string;
+  limit?: number;
+}
+
 
 const WelcomeScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation(); // Use navigation hook
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredCities, setFilteredCities] = useState([]);
-  const [location, setLocation] = useState(null);
 
-  // Function to fetch cities from the Google Geocoding API
-  const fetchCities = async (text) => {
-    if (text) {
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(text)}&key=${Geocode_API_KEY}`;
-      try {
-        const response = await fetch(url);
-        const data = await response.json();
-        if (data.status === 'OK') {
-          const cities = data.results.map((result) => {
-            const cityComponent = result.address_components.find((comp) => comp.types.includes('locality'));
-            const stateComponent = result.address_components.find((comp) => comp.types.includes('administrative_area_level_1'));
-            if (cityComponent && stateComponent) {
-              return {
-                city: cityComponent.long_name,
-                state: stateComponent.short_name,
-              };
-            }
-            return null;
-          }).filter(city => city); // Filter out any null results
-          setFilteredCities(cities);
-        } else {
-          setFilteredCities([]);
-        }
-      } catch (error) {
-        console.error('Error fetching cities:', error);
+
+
+  async function placesSearch(params: SearchParams)
+  {
+    try {
+
+
+    const options = {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+        Authorization: PLACES_API_KEY
       }
+
+    };
+
+    
+    const base_URL = 'https://api.foursquare.com/v3/places/search';
+
+    const urlParams = new URLSearchParams();
+
+    if (params.query) urlParams.append('query', params.query);
+    if (params.ll) urlParams.append('ll', params.ll);
+    if (params.radius) urlParams.append('radius', params.radius.toString());
+    if (params.categories) urlParams.append('categories', params.categories);
+    if (params.fields) urlParams.append('fields', params.fields);
+    if (params.min_price !== undefined) urlParams.append('min_price', params.min_price.toString());
+    if (params.max_price !== undefined) urlParams.append('max_price', params.max_price.toString());
+    if (params.open_now) urlParams.append('open_now', 'true');
+    if (params.near) urlParams.append('near', params.near);
+    if (params.sort) urlParams.append('sort', params.sort);
+    if (params.limit) urlParams.append('limit', params.limit.toString());
+
+
+    const final_URL = `${base_URL}?${urlParams.toString()}`;
+
+    const response = await fetch(final_URL, options)
+      .then(response => response.json())
+      .then(response => console.log(response))
+      .catch(err => console.error(err));
+
+    } catch (error) {
+
+      console.error('Error fetching data from Foursquare:', error);
+
+    }
+
+  }
+
+  async function openAITest()
+  {
+    
+  
+    const openai = new OpenAI({
+      apiKey: OPENAI_API_KEY,  
+  });
+  
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",  
+        messages: [
+          { role: "system", content: "You are a helpful assistant." },
+          { role: "user", content: "just say hi" },
+        ],
+      });
+  
+      console.log(completion.choices[0].message);
+    } catch (error) {
+      console.error("Error with OpenAI API:", error);
+    }
+  } 
+
+  async function getCoordinates(address: string)
+  {
+
+    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${Geocode_API_KEY}`);
+    
+    if (!response.ok) {
+        throw new Error('Network response was not ok');
+    }
+
+    const data = await response.json();
+    if (data.status === 'OK') {
+        const { lat, lng } = data.results[0].geometry.location;
+        return { latitude: lat, longitude: lng };
+    } else {
+        throw new Error('Geocoding failed: ' + data.status);
+    }
+}
+
+
+
+  // Filter cities based on user input
+  const handleSearch = (text) => {
+    setSearchQuery(text);
+    if (text) {
+      const filtered = cities.filter(city =>
+        city.toLowerCase().startsWith(text.toLowerCase())
+      );
+      setFilteredCities(filtered);
     } else {
       setFilteredCities([]);
     }
   };
 
-  const handleSearch = (text) => {
-    setSearchQuery(text);
-    fetchCities(text); // Fetch city and state from Google Geocoding API
-  };
-
+  // Handle city selection
   const handleCitySelect = (city) => {
-    setSearchQuery(`${city.city}, ${city.state}`);
+    setSearchQuery(city);
     setFilteredCities([]);
-    navigation.navigate('CityDescription', { city: city.city});
+
+    // Navigate to the City screen and pass the city name as a parameter
+    // Add this line to navigate to 'city-description'
+    navigation.navigate('CityDescription', { city });
+
   };
 
-  const handleShareLocation = async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        console.log('Permission to access location was denied');
-        return;
-      }
-      let currentLocation = await Location.getCurrentPositionAsync({});
-      setLocation(currentLocation as LocationObject);
-    };
+  useEffect(() => {
+
+
+    const userAddress = "1600 Amphitheatre Parkway, Mountain View, CA"; // This can come from a user input (can be imperfect...havent tested thoroughly though)
+    getCoordinates(userAddress)
+        .then(coords => console.log(coords))
+        .catch(error => console.error(error));
+
+  },[]);
+
+
+  useEffect(() => {
+
+    openAITest();
+
+
+  },[]);
+
+
+  useEffect(() => {
+
+    placesSearch({
+      query: 'nightlife',
+      ll: '41.8781,-87.6298',
+      radius: 1000,
+      categories: '13065,13032',
+      open_now: true,
+      limit: 10,
+    });  //an example usage. categories section can use the interface for our own categories. You shoudlnt have to worry about inputting raw category codes...
+
+
+  },[]);
+
+
 
   return (
     <ImageBackground
-      source={require('../assets/images/pexels-rickyrecap-1563256.png')}
-      style={styles.background}>
+         source={require('../assets/images/pexels-rickyrecap-1563256.png')}
+         style={styles.background}>
       <View style={styles.overlay}>
         <Text style={styles.title}>FindFun</Text>
 
-        <TouchableOpacity style={styles.button} onPress={handleShareLocation}>
-          <Text style={styles.buttonText}>
-            {location
-              ? `Lat: ${location.coords.latitude.toFixed(4)}, Long: ${location.coords.longitude.toFixed(4)}`
-              : 'Share location'}
-          </Text>
+        <TouchableOpacity style={styles.button} onPress={() => { }}>
+          <Text style={styles.buttonText}>Enable Location Sharing</Text>
         </TouchableOpacity>
 
         <View style={styles.container}>
@@ -91,10 +220,10 @@ const WelcomeScreen = () => {
             <FlatList
               style={styles.dropdown}
               data={filteredCities}
-              keyExtractor={(item, index) => index.toString()}
+              keyExtractor={(item) => item}
               renderItem={({ item }) => (
                 <TouchableOpacity style={styles.dropdownItem} onPress={() => handleCitySelect(item)}>
-                  <Text style={styles.dropdownText}>{item.city}, {item.state}</Text>
+                  <Text style={styles.dropdownText}>{item}</Text>
                 </TouchableOpacity>
               )}
             />
