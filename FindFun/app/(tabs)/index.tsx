@@ -8,6 +8,7 @@ import * as SQLite from 'expo-sqlite';
 
 const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose', 'Boston'];
 
+//fake/broken/stupid
 
 type LocationObject = {
   coords: {
