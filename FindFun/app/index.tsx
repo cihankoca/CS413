@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ImageBackground, StyleSheet, TextInput, F
 import { ThemedText } from '@/components/ThemedText';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { initDatabase, addItinerary, addEvent, getItineraries, getEventsForItinerary } from '@/utils/database';
+import { initDatabase } from '@/utils/database';
 import * as SQLite from 'expo-sqlite';
 import { supabase } from '@/utils/supabase';
 
@@ -17,7 +17,7 @@ type LocationObject = {
   };
 };
 
-const API_KEY = '='//zach has this
+const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY;
 
 const WelcomeScreen = () => {
   const navigation = useNavigation();
@@ -36,7 +36,7 @@ const WelcomeScreen = () => {
       method: 'GET',
       headers: {
         accept: 'application/json',
-        Authorization: API_KEY
+        Authorization: FOURSQUARE_API_KEY
       }
 
     };
@@ -71,40 +71,6 @@ const WelcomeScreen = () => {
     foursquareTest(); //just test api call
 
   },[]);
-
-
-  const handleTestDatabase = async () => {
-    if (db) {
-      try {
-        // Get current date and time
-        const now = new Date();
-        const formattedDate = now.toISOString().split('T')[0];
-        const formattedTime = now.toTimeString().split(' ')[0];
-
-        // Add a test itinerary
-        const itineraryId = await addItinerary(db, 'Test Itinerary', formattedDate);
-        
-        // Add a test event to the itinerary
-        await addEvent(db, itineraryId as number, 'Test Event', formattedDate, formattedTime, 40.7128, -74.0060, 'New York City');
-
-        // Retrieve all itineraries
-        const itineraries = await getItineraries(db);
-        
-        // Retrieve events for the test itinerary
-        const events = await getEventsForItinerary(db, itineraryId as number);
-
-        // Display the test results
-        setTestResult(
-          `Database test successful!\n` +
-          `Created itinerary: ${itineraries[0].name} (ID: ${itineraries[0].id})\n` +
-          `Added event: ${events[0].name} at ${events[0].time}`
-        );
-      } catch (error) {
-        console.error('Error testing database:', error);
-        setTestResult('Error testing database');
-      }
-    }
-  };
 
   const handleShareLocation = async () => {
     let { status } = await Location.requestForegroundPermissionsAsync();
@@ -177,9 +143,6 @@ const WelcomeScreen = () => {
                     />
                   )}
                 </View>
-                <TouchableOpacity style={styles.button} onPress={handleTestDatabase}>
-          <Text style={styles.buttonText}>Test Database</Text>
-        </TouchableOpacity>
 
         {testResult && (
           <View style={styles.eventContainer}>
@@ -188,7 +151,6 @@ const WelcomeScreen = () => {
         )}
 
       </View>
-
     </ImageBackground>
   );
 };
