@@ -6,7 +6,7 @@ import { useRoute } from '@react-navigation/native';
 const { width } = Dimensions.get('window');
 
 const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY; // foursquare api in discord
-const Geocode_API_KEY = ''; // google geocode api key in discord
+const Geocode_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEOENCODING_API_KEY;
 
 const ResultsPage = () => {
     const route = useRoute();
