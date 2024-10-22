@@ -10,7 +10,7 @@ type RootStackParamList = {
     ResultsPage: { selectedActivities: string[] };
 };
 
-interface ActivityPageProps {}
+interface ActivityPageProps { }
 
 const ActivityPage: React.FC<ActivityPageProps> = () => {
     const navigation = useNavigation(); // Use navigation hook to navigate to other screens
@@ -41,7 +41,7 @@ const ActivityPage: React.FC<ActivityPageProps> = () => {
                 .filter((activity) => selectedActivities[activity]);
 
             // Navigate to the Results Page and pass the selected activities
-            navigation.navigate('Results', { selectedActivities: selected });
+            //navigation.navigate('Results', { selectedActivities: selected });
         }
     };
 

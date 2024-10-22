@@ -13,12 +13,12 @@ import Entypo from '@expo/vector-icons/Entypo';
 import 'react-native-reanimated';
 
 // Import your screens here
-import WelcomeScreen from '@/app/index.tsx';
-import BuildDayScreen from '@/app/BuildDay.tsx';
-import ExploreScreen from '@/app/explore.tsx';
-import CityDescription from '@/app/CityDescription.tsx';
-import ActivityChoice from '@/app/ActivityChoice.tsx';
-import Results from '@/app/Results.tsx'
+import WelcomeScreen from '@/app/index';
+import BuildYourDay from '@/app/BuildYourDay';
+import ExploreScreen from '@/app/explore';
+import CityDescription from '@/app/CityDescription';
+import ActivityChoice from '@/app/ActivityChoice';
+import Results from '@/app/Results'
 
 
 
@@ -83,8 +83,8 @@ export default function RootLayout() {
 
         {/* Build Your Day Tab */}
         <Tab.Screen
-          name="BuildDay"
-          component={BuildDayScreen}
+          name="BuildYourDay"
+          component={BuildYourDay}
           options={{
             title: 'Build Your Day',
             tabBarIcon: ({ color, focused }) => (
