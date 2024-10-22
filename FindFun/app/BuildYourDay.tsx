@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, Dimens
 
 const buildPageBackground = require('../assets/images/buildpage.png');
 
-const OPENAI_API_KEY = ''; //openai api in discord
+const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 
 const BuildYourDay: React.FC = () => {
     const [step, setStep] = useState<number>(1);

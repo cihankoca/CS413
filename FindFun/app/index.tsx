@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as SQLite from 'expo-sqlite';
 
-const GEOCODING_API_KEY = ''; // geocode api in discord
+const GEOCODING_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEOENCODING_API_KEY;
 const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY;
 
 const WelcomeScreen = () => {
@@ -37,11 +37,6 @@ const WelcomeScreen = () => {
   }
 
   useEffect(() => {
-    const setupDatabase = async () => {
-      const database = await initDatabase();
-      setDb(database);
-    };
-    setupDatabase();
     foursquareTest(); // Run Foursquare API test
   }, []);
 
