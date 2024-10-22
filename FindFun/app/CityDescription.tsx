@@ -20,10 +20,6 @@ const CityScreen = () => {
 
   const cityDescription = cityDescriptions[city] || 'A wonderful place to visit!';
 
-  useEffect(() => {
-    console.log('CityScreen mounted, navigation:', navigation);
-  }, []);
-
   // Animation for pull-up tab with initial value set to 0 (bottom)
   const animation = useRef(new Animated.Value(0)).current;
 
@@ -92,10 +88,11 @@ const CityScreen = () => {
         {/* Activity Choice Button */}
         <TouchableOpacity
           style={styles.navButton}
-          onPress={() => navigation.push('ActivityChoice')}
+          onPress={() => navigation.push('ActivityChoice', { city })} // Pass the city to ActivityChoice
         >
           <FontAwesome name="male" size={28} color="#fff" />
         </TouchableOpacity>
+
       </View>
 
       {/* Pull-up tab for description positioned directly below the navigation bar */}

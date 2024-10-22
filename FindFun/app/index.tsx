@@ -1,143 +1,68 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ImageBackground, StyleSheet, TextInput, FlatList } from 'react-native';
-import { ThemedText } from '@/components/ThemedText';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { initDatabase, addItinerary, addEvent, getItineraries, getEventsForItinerary } from '@/utils/database';
 import * as SQLite from 'expo-sqlite';
 
-const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose', 'Boston'];
-
-
-type LocationObject = {
-  coords: {
-    latitude: number;
-    longitude: number;
-  };
-};
-
-const API_KEY = '='//zach has this
+const Geocode_API_KEY = 'AIzaSyDEKPdggJUclMRlpy6bO7YIPIhzvA4qM4M';
 
 const WelcomeScreen = () => {
   const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredCities, setFilteredCities] = useState([]);
-  const [location, setLocation] = useState<LocationObject | null>(null);
-  const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
-  const [testResult, setTestResult] = useState<string | null>(null);
+  const [location, setLocation] = useState(null);
 
-  async function foursquareTest()
-  {
-    try {
-
-
-    const options = {
-      method: 'GET',
-      headers: {
-        accept: 'application/json',
-        Authorization: API_KEY
-      }
-
-    };
-    
-    var final_URL = 'https://api.foursquare.com/v3/places/search?near=Chicago%2C%20IL&sort=RELEVANCE&'; //test search that works guarantee
-
-
-    const response = await fetch(final_URL, options)
-      .then(response => response.json())
-      .then(response => console.log(response))
-      .catch(err => console.error(err));
-
-    } catch (error) {
-
-      console.error('Error fetching data from Foursquare:', error);
-
-    }
-
-  }
-
-
-  useEffect(() => {
-    const setupDatabase = async () => {
-      const database = await initDatabase();
-      setDb(database);
-    };
-    setupDatabase();
-  }, []);
-
-  useEffect(() => {
-
-    foursquareTest(); //just test api call
-
-  },[]);
-
-
-  const handleTestDatabase = async () => {
-    if (db) {
+  // Function to fetch cities from the Google Geocoding API
+  const fetchCities = async (text) => {
+    if (text) {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(text)}&key=${Geocode_API_KEY}`;
       try {
-        // Get current date and time
-        const now = new Date();
-        const formattedDate = now.toISOString().split('T')[0];
-        const formattedTime = now.toTimeString().split(' ')[0];
-
-        // Add a test itinerary
-        const itineraryId = await addItinerary(db, 'Test Itinerary', formattedDate);
-        
-        // Add a test event to the itinerary
-        await addEvent(db, itineraryId as number, 'Test Event', formattedDate, formattedTime, 40.7128, -74.0060, 'New York City');
-
-        // Retrieve all itineraries
-        const itineraries = await getItineraries(db);
-        
-        // Retrieve events for the test itinerary
-        const events = await getEventsForItinerary(db, itineraryId as number);
-
-        // Display the test results
-        setTestResult(
-          `Database test successful!\n` +
-          `Created itinerary: ${itineraries[0].name} (ID: ${itineraries[0].id})\n` +
-          `Added event: ${events[0].name} at ${events[0].time}`
-        );
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data.status === 'OK') {
+          const cities = data.results.map((result) => {
+            const cityComponent = result.address_components.find((comp) => comp.types.includes('locality'));
+            const stateComponent = result.address_components.find((comp) => comp.types.includes('administrative_area_level_1'));
+            if (cityComponent && stateComponent) {
+              return {
+                city: cityComponent.long_name,
+                state: stateComponent.short_name,
+              };
+            }
+            return null;
+          }).filter(city => city); // Filter out any null results
+          setFilteredCities(cities);
+        } else {
+          setFilteredCities([]);
+        }
       } catch (error) {
-        console.error('Error testing database:', error);
-        setTestResult('Error testing database');
+        console.error('Error fetching cities:', error);
       }
+    } else {
+      setFilteredCities([]);
     }
+  };
+
+  const handleSearch = (text) => {
+    setSearchQuery(text);
+    fetchCities(text); // Fetch city and state from Google Geocoding API
+  };
+
+  const handleCitySelect = (city) => {
+    setSearchQuery(`${city.city}, ${city.state}`);
+    setFilteredCities([]);
+    navigation.navigate('CityDescription', { city: city.city});
   };
 
   const handleShareLocation = async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      console.log('Permission to access location was denied');
-      return;
-    }
-    let currentLocation = await Location.getCurrentPositionAsync({});
-    setLocation(currentLocation as LocationObject);
-  };
-
-  // Filter cities based on user input
-    const handleSearch = (text) => {
-      setSearchQuery(text);
-      if (text) {
-        const filtered = cities.filter(city =>
-          city.toLowerCase().startsWith(text.toLowerCase())
-        );
-        setFilteredCities(filtered);
-      } else {
-        setFilteredCities([]);
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Permission to access location was denied');
+        return;
       }
+      let currentLocation = await Location.getCurrentPositionAsync({});
+      setLocation(currentLocation as LocationObject);
     };
-
-// Handle city selection
-  const handleCitySelect = (city) => {
-    setSearchQuery(city);
-    setFilteredCities([]);
-
-    // Navigate to the City screen and pass the city name as a parameter
-    // Add this line to navigate to 'city-description'
-    navigation.navigate('CityDescription', { city });
-
-  };
 
   return (
     <ImageBackground
@@ -154,40 +79,28 @@ const WelcomeScreen = () => {
           </Text>
         </TouchableOpacity>
 
-
         <View style={styles.container}>
-                  <TextInput
-                    placeholderTextColor="#ccc"
-                    style={styles.searchField}
-                    placeholder="Search by City..."
-                    value={searchQuery}
-                    onChangeText={handleSearch}
-                  />
-                  {filteredCities.length > 0 && (
-                    <FlatList
-                      style={styles.dropdown}
-                      data={filteredCities}
-                      keyExtractor={(item) => item}
-                      renderItem={({ item }) => (
-                        <TouchableOpacity style={styles.dropdownItem} onPress={() => handleCitySelect(item)}>
-                          <Text style={styles.dropdownText}>{item}</Text>
-                        </TouchableOpacity>
-                      )}
-                    />
-                  )}
-                </View>
-                <TouchableOpacity style={styles.button} onPress={handleTestDatabase}>
-          <Text style={styles.buttonText}>Test Database</Text>
-        </TouchableOpacity>
-
-        {testResult && (
-          <View style={styles.eventContainer}>
-            <Text style={styles.eventText}>{testResult}</Text>
-          </View>
-        )}
-
+          <TextInput
+            placeholderTextColor="#ccc"
+            style={styles.searchField}
+            placeholder="Search by City..."
+            value={searchQuery}
+            onChangeText={handleSearch}
+          />
+          {filteredCities.length > 0 && (
+            <FlatList
+              style={styles.dropdown}
+              data={filteredCities}
+              keyExtractor={(item, index) => index.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.dropdownItem} onPress={() => handleCitySelect(item)}>
+                  <Text style={styles.dropdownText}>{item.city}, {item.state}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          )}
+        </View>
       </View>
-
     </ImageBackground>
   );
 };
@@ -222,17 +135,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
   },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 50,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '80%',
-  },
-  bottomText: {
-    color: 'white',
-    fontSize: 18,
-  },
   searchField: {
     width: '80%',
     padding: 10,
@@ -243,35 +145,24 @@ const styles = StyleSheet.create({
     color: 'white',
     backgroundColor: '#333',
   },
-  eventContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    padding: 10,
-    borderRadius: 5,
-    marginTop: 20,
-  },
-  eventText: {
-    color: 'black',
-    fontSize: 16,
-  },
   dropdown: {
-      width: '80%',
-      backgroundColor: '#fff',
-      borderColor: '#ccc',
-      borderWidth: 1,
-      borderRadius: 10,
-      marginTop: 5,
-      maxHeight: 150, // Limit height of dropdown
-    },
-    dropdownItem: {
-      padding: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: '#ccc',
-    },
-    dropdownText: {
-      fontSize: 16,
-      color: '#333',
-    },
+    width: '80%',
+    backgroundColor: '#fff',
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 10,
+    marginTop: 5,
+    maxHeight: 150, // Limit height of dropdown
+  },
+  dropdownItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: '#333',
+  },
 });
+
 export default WelcomeScreen;
-
-

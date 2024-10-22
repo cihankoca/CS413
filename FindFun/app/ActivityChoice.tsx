@@ -2,25 +2,19 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
-
-type RootStackParamList = {
-    SelectedActivities: { selected: string[] };
-    ActivityPage: undefined;
-    ResultsPage: { selectedActivities: string[] };
-};
-
-interface ActivityPageProps {}
+import { useNavigation, useRoute } from '@react-navigation/native';
 
 const ActivityPage: React.FC<ActivityPageProps> = () => {
-    const navigation = useNavigation(); // Use navigation hook to navigate to other screens
+    const navigation = useNavigation();
+    const route = useRoute();
+    const { city } = route.params; // Get the city passed from CityScreen
 
     const [selectedActivities, setSelectedActivities] = useState({
         food: false,
         museum: false,
         park: false,
         outdoor: false,
-        adventurewildlife: false,
+        wildlife: false,
         concerts: false,
         theatre: false,
         nightlife: false,
@@ -40,8 +34,8 @@ const ActivityPage: React.FC<ActivityPageProps> = () => {
             const selected = (Object.keys(selectedActivities) as (keyof typeof selectedActivities)[])
                 .filter((activity) => selectedActivities[activity]);
 
-            // Navigate to the Results Page and pass the selected activities
-            navigation.navigate('Results', { selectedActivities: selected });
+            // Navigate to the Results Page and pass the selected activities and city
+            navigation.navigate('Results', { selectedActivities: selected, city });
         }
     };
 
@@ -123,10 +117,10 @@ const ActivityPage: React.FC<ActivityPageProps> = () => {
                     <TouchableOpacity
                         style={[
                             styles.activity,
-                            selectedActivities.adventurewildlife && styles.selectedActivity,
+                            selectedActivities.wildlife && styles.selectedActivity,
                         ]}
                         activeOpacity={0.8}
-                        onPress={() => toggleActivity('adventurewildlife')}
+                        onPress={() => toggleActivity('wildlife')}
                     >
                         <Image source={require('../assets/images/activity/adventurewildlife.jpg')} style={styles.image} />
                         <View style={styles.iconLabel}>
