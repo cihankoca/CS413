@@ -16,7 +16,39 @@ type LocationObject = {
   };
 };
 
-const API_KEY = '='//zach has this
+//Don't commit API keys until we get them as environment variables
+const PLACES_API_KEY = ''//zach has this (also pinned in discord)
+const OPENAI_API_KEY = '' //cole has this (also pinned in discord)
+const Geocode_API_KEY = '' //zach has this 
+
+//we can use this to basically make our own categories and name them whatever. When user does a search, come here and splice the respective values together with a comma between them and add it to the API request
+const categoryMap: { [key: string]: string } = {  //took the keys from Chihan's work in the UI. Probably want to refine
+  'Food': '13065',
+  'Museum': '10027',
+  'Adventure': '',  //bunch of stuff
+  'Concert': '', 
+  //'Park': '',        //should just be part of outdoor
+  'Outdoor': '16000',  //landmark/outdoor. might have stuff we dont want (lol hill)
+  'Theater': '',           //does this mean movies or live shows? If live shows, it should be with concert somehow
+  'Nightlife': '10008,10032,10033,10052,13003',  //casino,nightclub,pachinko,strip club, bar, 
+
+
+  // Can Add more categories and their Foursquare IDs
+}; 
+
+interface SearchParams { //basically a struct for search parameters. create one and change it as user messes with options/search. Then pass it to the function and a search will be made with these params
+  query?: string;
+  ll?: string; // latitude,longitude
+  radius?: number;
+  categories?: string; // comma-separated category IDs. 
+  fields?: string; // comma-separated fields
+  min_price?: number;
+  max_price?: number;
+  open_now?: boolean;
+  near?: string;
+  sort?: string;
+  limit?: number;
+}
 
 const WelcomeScreen = () => {
   const navigation = useNavigation();
@@ -25,6 +57,7 @@ const WelcomeScreen = () => {
   const [location, setLocation] = useState<LocationObject | null>(null);
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
+
 
   async function foursquareTest()
   {
@@ -35,7 +68,7 @@ const WelcomeScreen = () => {
       method: 'GET',
       headers: {
         accept: 'application/json',
-        Authorization: API_KEY
+        Authorization: PLACES_API_KEY
       }
 
     };
@@ -56,6 +89,58 @@ const WelcomeScreen = () => {
 
   }
 
+  async function placesSearch(params: SearchParams)
+  {
+    try {
+
+
+    const options = {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+        Authorization: PLACES_API_KEY
+      }
+
+    };
+
+    
+    const base_URL = 'https://api.foursquare.com/v3/places/search';
+    var final_URL = 'finalURL';
+
+    const urlParams = new URLSearchParams();
+
+    if (params.query) urlParams.append('query', params.query);
+    if (params.ll) urlParams.append('ll', params.ll);
+    if (params.radius) urlParams.append('radius', params.radius.toString());
+    if (params.categories) urlParams.append('categories', params.categories);
+    if (params.fields) urlParams.append('fields', params.fields);
+    if (params.min_price !== undefined) urlParams.append('min_price', params.min_price.toString());
+    if (params.max_price !== undefined) urlParams.append('max_price', params.max_price.toString());
+    if (params.open_now) urlParams.append('open_now', 'true');
+    if (params.near) urlParams.append('near', params.near);
+    if (params.sort) urlParams.append('sort', params.sort);
+    if (params.limit) urlParams.append('limit', params.limit.toString());
+
+
+
+
+    
+
+
+    const response = await fetch(final_URL, options)
+      .then(response => response.json())
+      .then(response => console.log(response))
+      .catch(err => console.error(err));
+
+    } catch (error) {
+
+      console.error('Error fetching data from Foursquare:', error);
+
+    }
+
+  }
+
+
 
   useEffect(() => {
     const setupDatabase = async () => {
@@ -67,7 +152,9 @@ const WelcomeScreen = () => {
 
   useEffect(() => {
 
-    foursquareTest(); //just test api call
+    console.log("hey");
+
+    //foursquareTest(); //just test api call
 
   },[]);
 
@@ -153,7 +240,6 @@ const WelcomeScreen = () => {
               : 'Share location'}
           </Text>
         </TouchableOpacity>
-
 
         <View style={styles.container}>
                   <TextInput
