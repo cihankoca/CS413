@@ -1,24 +1,40 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, Animated, PanResponder, ScrollView, Dimensions } from 'react-native';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
+import { StackNavigationProp } from '@react-navigation/stack';
+
+// Define the types for the navigation route params
+type RootStackParamList = {
+  CityScreen: { city: string };
+  ActivityChoice: undefined; // ActivityChoice expects no parameters
+};
+
+// Define navigation type
+type CityScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'CityScreen'
+>;
+
+type CityScreenRouteProp = RouteProp<RootStackParamList, 'CityScreen'>;
 
 const { height: screenHeight } = Dimensions.get('window');
 
 const CityScreen = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { city } = route.params; // Get the city name passed from the previous screen
+  const navigation = useNavigation<CityScreenNavigationProp>();
+  const route = useRoute<CityScreenRouteProp>();
+  const { city } = route.params;
 
   // City descriptions
-  const cityDescriptions = {
-    'Boston': 'Boston is a city rich in history, known as the birthplace of the American Revolution. It boasts world-class educational institutions like Harvard and MIT, making it a hub for learning and innovation. The city features cobblestone streets and historic landmarks, such as the Freedom Trail, that give visitors a glimpse into the early history of the nation. Boston has a vibrant cultural scene with diverse neighborhoods, renowned art museums, and a passionate sports fan base. With scenic views along the Charles River and beautiful public parks like Boston Common, it offers a unique blend of old-world charm and modern energy.',
-    'New York': 'New York City is a global hub of culture, entertainment, and finance, known as the city that never sleeps.',
-    'Los Angeles': 'Los Angeles, home to Hollywood, is known for its Mediterranean climate and the entertainment industry.',
-    'Chicago': 'Chicago is famed for its bold architecture, world-class museums, and the deep-dish pizza.',
+  const cityDescriptions: { [key: string]: string } = {
+    'Boston': 'Boston is a city rich in history...',
+    'New York': 'New York City is a global hub...',
+    'Los Angeles': 'Los Angeles, home to Hollywood...',
+    'Chicago': 'Chicago is famed for its bold architecture...',
   };
 
   const cityDescription = cityDescriptions[city] || 'A wonderful place to visit!';
+
 
   // Animation for pull-up tab with initial value set to 0 (bottom)
   const animation = useRef(new Animated.Value(0)).current;
@@ -34,12 +50,12 @@ const CityScreen = () => {
       onPanResponderRelease: (e, gestureState) => {
         if (gestureState.dy < -100) {
           Animated.spring(animation, {
-            toValue: screenHeight * 0.6, // Expand to 60% of the screen height when fully pulled up
+            toValue: screenHeight * 0.6,
             useNativeDriver: false,
           }).start();
         } else {
           Animated.spring(animation, {
-            toValue: 0, // Return to bottom position
+            toValue: 0,
             useNativeDriver: false,
           }).start();
         }
@@ -88,7 +104,7 @@ const CityScreen = () => {
         {/* Activity Choice Button */}
         <TouchableOpacity
           style={styles.navButton}
-          onPress={() => navigation.push('ActivityChoice', { city })} // Pass the city to ActivityChoice
+           onPress={() => navigation.push('ActivityChoice', { city })} // Pass the city to ActivityChoice
         >
           <FontAwesome name="male" size={28} color="#fff" />
         </TouchableOpacity>
@@ -103,8 +119,8 @@ const CityScreen = () => {
           {
             height: animation.interpolate({
               inputRange: [0, screenHeight * 0.6],
-              outputRange: [140, screenHeight * 0.6], // Dynamic height up to 60% of the screen
-              extrapolate: 'clamp', // Prevent going beyond the max value
+              outputRange: [140, screenHeight * 0.6],
+              extrapolate: 'clamp',
             }),
           },
         ]}

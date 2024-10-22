@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+
 import { useNavigation, useRoute } from '@react-navigation/native';
 
 const ActivityPage: React.FC<ActivityPageProps> = () => {
@@ -34,8 +35,7 @@ const ActivityPage: React.FC<ActivityPageProps> = () => {
             const selected = (Object.keys(selectedActivities) as (keyof typeof selectedActivities)[])
                 .filter((activity) => selectedActivities[activity]);
 
-            // Navigate to the Results Page and pass the selected activities and city
-            navigation.navigate('Results', { selectedActivities: selected, city });
+    navigation.navigate('Results', { selectedActivities: selected, city });
         }
     };
 
