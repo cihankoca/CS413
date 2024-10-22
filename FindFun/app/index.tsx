@@ -1,54 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ImageBackground, StyleSheet, TextInput, FlatList } from 'react-native';
+import { ThemedText } from '@/components/ThemedText';
 import { useNavigation } from '@react-navigation/native';
-import OpenAI from "openai";
+import * as Location from 'expo-location';
+import { initDatabase } from '@/utils/database';
+import * as SQLite from 'expo-sqlite';
+import { supabase } from '@/utils/supabase';
 
 const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose', 'Boston'];
 
 
-//Don't commit API keys until we get them as environment variables
-const PLACES_API_KEY = ''//zach has this (also pinned in discord)
-const OPENAI_API_KEY = '' //cole has this (also pinned in discord)
-const Geocode_API_KEY = '' //zach has this 
+type LocationObject = {
+  coords: {
+    latitude: number;
+    longitude: number;
+  };
+};
 
-//we can use this to basically make our own categories and name them whatever. When user does a search, come here and splice the respective values together with a comma between them and add it to the API request
-const categoryMap: { [key: string]: string } = {  //took the keys from Chihan's work in the UI. Probably want to refine
-  'Food': '13065',
-  'Museum': '10027',
-  'Adventure': '',  //bunch of stuff
-  'Concert': '', 
-  //'Park': '',        //should just be part of outdoor
-  'Outdoor': '16000',  //landmark/outdoor. might have stuff we dont want (lol hill)
-  'Theater': '',           //does this mean movies or live shows? If live shows, it should be with concert somehow
-  'Nightlife': '10008,10032,10033,10052,13003',  //casino,nightclub,pachinko,strip club, bar, 
-
-
-  // Can Add more categories and their Foursquare IDs
-}; 
-
-interface SearchParams { //basically a struct for search parameters. create one and change it as user messes with options/search. Then pass it to the function and a search will be made with these params
-  query?: string;
-  ll?: string; // latitude,longitude
-  radius?: number;
-  categories?: string; // comma-separated category IDs. 
-  fields?: string; // comma-separated fields
-  min_price?: number;
-  max_price?: number;
-  open_now?: boolean;
-  near?: string;
-  sort?: string;
-  limit?: number;
-}
-
+const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY;
 
 const WelcomeScreen = () => {
-  const navigation = useNavigation(); // Use navigation hook
+  const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredCities, setFilteredCities] = useState([]);
+  const [location, setLocation] = useState<LocationObject | null>(null);
+  const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
-
-
-  async function placesSearch(params: SearchParams)
+  async function foursquareTest()
   {
     try {
 
@@ -57,30 +36,13 @@ const WelcomeScreen = () => {
       method: 'GET',
       headers: {
         accept: 'application/json',
-        Authorization: PLACES_API_KEY
+        Authorization: FOURSQUARE_API_KEY
       }
 
     };
-
     
-    const base_URL = 'https://api.foursquare.com/v3/places/search';
+    var final_URL = 'https://api.foursquare.com/v3/places/search?near=Chicago%2C%20IL&sort=RELEVANCE&'; //test search that works guarantee
 
-    const urlParams = new URLSearchParams();
-
-    if (params.query) urlParams.append('query', params.query);
-    if (params.ll) urlParams.append('ll', params.ll);
-    if (params.radius) urlParams.append('radius', params.radius.toString());
-    if (params.categories) urlParams.append('categories', params.categories);
-    if (params.fields) urlParams.append('fields', params.fields);
-    if (params.min_price !== undefined) urlParams.append('min_price', params.min_price.toString());
-    if (params.max_price !== undefined) urlParams.append('max_price', params.max_price.toString());
-    if (params.open_now) urlParams.append('open_now', 'true');
-    if (params.near) urlParams.append('near', params.near);
-    if (params.sort) urlParams.append('sort', params.sort);
-    if (params.limit) urlParams.append('limit', params.limit.toString());
-
-
-    const final_URL = `${base_URL}?${urlParams.toString()}`;
 
     const response = await fetch(final_URL, options)
       .then(response => response.json())
@@ -95,63 +57,45 @@ const WelcomeScreen = () => {
 
   }
 
-  async function openAITest()
-  {
-    
-  
-    const openai = new OpenAI({
-      apiKey: OPENAI_API_KEY,  
-  });
-  
-    try {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o",  
-        messages: [
-          { role: "system", content: "You are a helpful assistant." },
-          { role: "user", content: "just say hi" },
-        ],
-      });
-  
-      console.log(completion.choices[0].message);
-    } catch (error) {
-      console.error("Error with OpenAI API:", error);
+
+  useEffect(() => {
+    const setupDatabase = async () => {
+      const database = await initDatabase();
+      setDb(database);
+    };
+    setupDatabase();
+  }, []);
+
+  useEffect(() => {
+
+    foursquareTest(); //just test api call
+
+  },[]);
+
+  const handleShareLocation = async () => {
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      console.log('Permission to access location was denied');
+      return;
     }
-  } 
-
-  async function getCoordinates(address: string)
-  {
-
-    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${Geocode_API_KEY}`);
-    
-    if (!response.ok) {
-        throw new Error('Network response was not ok');
-    }
-
-    const data = await response.json();
-    if (data.status === 'OK') {
-        const { lat, lng } = data.results[0].geometry.location;
-        return { latitude: lat, longitude: lng };
-    } else {
-        throw new Error('Geocoding failed: ' + data.status);
-    }
-}
-
-
-
-  // Filter cities based on user input
-  const handleSearch = (text) => {
-    setSearchQuery(text);
-    if (text) {
-      const filtered = cities.filter(city =>
-        city.toLowerCase().startsWith(text.toLowerCase())
-      );
-      setFilteredCities(filtered);
-    } else {
-      setFilteredCities([]);
-    }
+    let currentLocation = await Location.getCurrentPositionAsync({});
+    setLocation(currentLocation as LocationObject);
   };
 
-  // Handle city selection
+  // Filter cities based on user input
+    const handleSearch = (text) => {
+      setSearchQuery(text);
+      if (text) {
+        const filtered = cities.filter(city =>
+          city.toLowerCase().startsWith(text.toLowerCase())
+        );
+        setFilteredCities(filtered);
+      } else {
+        setFilteredCities([]);
+      }
+    };
+
+// Handle city selection
   const handleCitySelect = (city) => {
     setSearchQuery(city);
     setFilteredCities([]);
@@ -162,73 +106,50 @@ const WelcomeScreen = () => {
 
   };
 
-  useEffect(() => {
-
-
-    const userAddress = "1600 Amphitheatre Parkway, Mountain View, CA"; // This can come from a user input (can be imperfect...havent tested thoroughly though)
-    getCoordinates(userAddress)
-        .then(coords => console.log(coords))
-        .catch(error => console.error(error));
-
-  },[]);
-
-
-  useEffect(() => {
-
-    openAITest();
-
-
-  },[]);
-
-
-  useEffect(() => {
-
-    placesSearch({
-      query: 'nightlife',
-      ll: '41.8781,-87.6298',
-      radius: 1000,
-      categories: '13065,13032',
-      open_now: true,
-      limit: 10,
-    });  //an example usage. categories section can use the interface for our own categories. You shoudlnt have to worry about inputting raw category codes...
-
-
-  },[]);
-
-
-
   return (
     <ImageBackground
-         source={require('../assets/images/pexels-rickyrecap-1563256.png')}
-         style={styles.background}>
+      source={require('../assets/images/pexels-rickyrecap-1563256.png')}
+      style={styles.background}>
       <View style={styles.overlay}>
         <Text style={styles.title}>FindFun</Text>
 
-        <TouchableOpacity style={styles.button} onPress={() => { }}>
-          <Text style={styles.buttonText}>Enable Location Sharing</Text>
+        <TouchableOpacity style={styles.button} onPress={handleShareLocation}>
+          <Text style={styles.buttonText}>
+            {location
+              ? `Lat: ${location.coords.latitude.toFixed(4)}, Long: ${location.coords.longitude.toFixed(4)}`
+              : 'Share location'}
+          </Text>
         </TouchableOpacity>
 
+
         <View style={styles.container}>
-          <TextInput
-            placeholderTextColor="#ccc"
-            style={styles.searchField}
-            placeholder="Search by City..."
-            value={searchQuery}
-            onChangeText={handleSearch}
-          />
-          {filteredCities.length > 0 && (
-            <FlatList
-              style={styles.dropdown}
-              data={filteredCities}
-              keyExtractor={(item) => item}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.dropdownItem} onPress={() => handleCitySelect(item)}>
-                  <Text style={styles.dropdownText}>{item}</Text>
-                </TouchableOpacity>
-              )}
-            />
-          )}
-        </View>
+                  <TextInput
+                    placeholderTextColor="#ccc"
+                    style={styles.searchField}
+                    placeholder="Search by City..."
+                    value={searchQuery}
+                    onChangeText={handleSearch}
+                  />
+                  {filteredCities.length > 0 && (
+                    <FlatList
+                      style={styles.dropdown}
+                      data={filteredCities}
+                      keyExtractor={(item) => item}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity style={styles.dropdownItem} onPress={() => handleCitySelect(item)}>
+                          <Text style={styles.dropdownText}>{item}</Text>
+                        </TouchableOpacity>
+                      )}
+                    />
+                  )}
+                </View>
+
+        {testResult && (
+          <View style={styles.eventContainer}>
+            <Text style={styles.eventText}>{testResult}</Text>
+          </View>
+        )}
+
       </View>
     </ImageBackground>
   );
@@ -264,6 +185,17 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
   },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 50,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '80%',
+  },
+  bottomText: {
+    color: 'white',
+    fontSize: 18,
+  },
   searchField: {
     width: '80%',
     padding: 10,
@@ -274,24 +206,35 @@ const styles = StyleSheet.create({
     color: 'white',
     backgroundColor: '#333',
   },
-  dropdown: {
-    width: '80%',
-    backgroundColor: '#fff',
-    borderColor: '#ccc',
-    borderWidth: 1,
-    borderRadius: 10,
-    marginTop: 5,
-    maxHeight: 150, // Limit height of dropdown
-  },
-  dropdownItem: {
+  eventContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
     padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    borderRadius: 5,
+    marginTop: 20,
   },
-  dropdownText: {
+  eventText: {
+    color: 'black',
     fontSize: 16,
-    color: '#333',
   },
+  dropdown: {
+      width: '80%',
+      backgroundColor: '#fff',
+      borderColor: '#ccc',
+      borderWidth: 1,
+      borderRadius: 10,
+      marginTop: 5,
+      maxHeight: 150, // Limit height of dropdown
+    },
+    dropdownItem: {
+      padding: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: '#ccc',
+    },
+    dropdownText: {
+      fontSize: 16,
+      color: '#333',
+    },
 });
-
 export default WelcomeScreen;
+
+
