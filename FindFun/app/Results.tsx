@@ -5,9 +5,8 @@ import { useRoute } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
-// Your API Keys
-const PLACES_API_KEY = 'fsq3KNceqiMpF7bVoNdExSmfbdRH3fTxUXLbqzmeDonsdTQ=';
-const Geocode_API_KEY = 'AIzaSyDEKPdggJUclMRlpy6bO7YIPIhzvA4qM4M';
+const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY; // foursquare api in discord
+const Geocode_API_KEY = ''; // google geocode api key in discord
 
 const ResultsPage = () => {
     const route = useRoute();
@@ -48,7 +47,7 @@ const ResultsPage = () => {
 
                     const response = await fetch(url, {
                         headers: {
-                            Authorization: PLACES_API_KEY,
+                            Authorization: FOURSQUARE_API_KEY,
                         },
                     });
                     const data = await response.json();
@@ -63,7 +62,7 @@ const ResultsPage = () => {
                         const detailsUrl = `https://api.foursquare.com/v3/places/${place.fsq_id}`;
                         const detailsResponse = await fetch(detailsUrl, {
                             headers: {
-                                Authorization: PLACES_API_KEY,
+                                Authorization: FOURSQUARE_API_KEY,
                             },
                         });
                         const detailsData = await detailsResponse.json();

@@ -1,62 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ImageBackground, StyleSheet, TextInput, FlatList } from 'react-native';
-import { ThemedText } from '@/components/ThemedText';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { initDatabase } from '@/utils/database';
 import * as SQLite from 'expo-sqlite';
-import { supabase } from '@/utils/supabase';
 
-const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose', 'Boston'];
-
-
-type LocationObject = {
-  coords: {
-    latitude: number;
-    longitude: number;
-  };
-};
-
+const GEOCODING_API_KEY = ''; // geocode api in discord
 const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY;
 
 const WelcomeScreen = () => {
   const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredCities, setFilteredCities] = useState([]);
-  const [location, setLocation] = useState<LocationObject | null>(null);
+  const [location, setLocation] = useState(null);
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
 
-  async function foursquareTest()
-  {
+  // Retain Foursquare API Check
+  async function foursquareTest() {
     try {
+      const options = {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          Authorization: FOURSQUARE_API_KEY
+        }
+      };
 
-
-    const options = {
-      method: 'GET',
-      headers: {
-        accept: 'application/json',
-        Authorization: FOURSQUARE_API_KEY
-      }
-
-    };
-    
-    var final_URL = 'https://api.foursquare.com/v3/places/search?near=Chicago%2C%20IL&sort=RELEVANCE&'; //test search that works guarantee
-
-
-    const response = await fetch(final_URL, options)
-      .then(response => response.json())
-      .then(response => console.log(response))
-      .catch(err => console.error(err));
+      const final_URL = 'https://api.foursquare.com/v3/places/search?near=Chicago%2C%20IL&sort=RELEVANCE&'; // Test search
+      const response = await fetch(final_URL, options);
+      const data = await response.json();
+      console.log(data); // Log Foursquare API response
 
     } catch (error) {
-
       console.error('Error fetching data from Foursquare:', error);
-
     }
-
   }
-
 
   useEffect(() => {
     const setupDatabase = async () => {
@@ -64,13 +42,8 @@ const WelcomeScreen = () => {
       setDb(database);
     };
     setupDatabase();
+    foursquareTest(); // Run Foursquare API test
   }, []);
-
-  useEffect(() => {
-
-    foursquareTest(); //just test api call
-
-  },[]);
 
   const handleShareLocation = async () => {
     let { status } = await Location.requestForegroundPermissionsAsync();
@@ -79,31 +52,51 @@ const WelcomeScreen = () => {
       return;
     }
     let currentLocation = await Location.getCurrentPositionAsync({});
-    setLocation(currentLocation as LocationObject);
+    setLocation(currentLocation);
   };
 
-  // Filter cities based on user input
-    const handleSearch = (text) => {
-      setSearchQuery(text);
-      if (text) {
-        const filtered = cities.filter(city =>
-          city.toLowerCase().startsWith(text.toLowerCase())
-        );
-        setFilteredCities(filtered);
+  // Fetch cities using Google Geocoding API
+  const handleSearch = async (text) => {
+    setSearchQuery(text);
+
+    if (text.trim() === '') {
+      setFilteredCities([]);
+      return;
+    }
+
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(text)}&key=${GEOCODING_API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.status === 'OK') {
+        const cities = data.results.map(result => {
+          const cityComponent = result.address_components.find(comp => comp.types.includes('locality'));
+          const stateComponent = result.address_components.find(comp => comp.types.includes('administrative_area_level_1'));
+
+          if (cityComponent && stateComponent) {
+            return {
+              city: cityComponent.long_name,
+              state: stateComponent.short_name,
+            };
+          }
+          return null;
+        }).filter(city => city); // Filter out any null results
+
+        setFilteredCities(cities);
       } else {
         setFilteredCities([]);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching cities:', error);
+      setFilteredCities([]);
+    }
+  };
 
-// Handle city selection
   const handleCitySelect = (city) => {
-    setSearchQuery(city);
+    setSearchQuery(`${city.city}, ${city.state}`);
     setFilteredCities([]);
-
-    // Navigate to the City screen and pass the city name as a parameter
-    // Add this line to navigate to 'city-description'
-    navigation.navigate('CityDescription', { city });
-
+    navigation.navigate('CityDescription', { city: city.city });
   };
 
   return (
@@ -121,28 +114,27 @@ const WelcomeScreen = () => {
           </Text>
         </TouchableOpacity>
 
-
         <View style={styles.container}>
-                  <TextInput
-                    placeholderTextColor="#ccc"
-                    style={styles.searchField}
-                    placeholder="Search by City..."
-                    value={searchQuery}
-                    onChangeText={handleSearch}
-                  />
-                  {filteredCities.length > 0 && (
-                    <FlatList
-                      style={styles.dropdown}
-                      data={filteredCities}
-                      keyExtractor={(item) => item}
-                      renderItem={({ item }) => (
-                        <TouchableOpacity style={styles.dropdownItem} onPress={() => handleCitySelect(item)}>
-                          <Text style={styles.dropdownText}>{item}</Text>
-                        </TouchableOpacity>
-                      )}
-                    />
-                  )}
-                </View>
+          <TextInput
+            placeholderTextColor="#ccc"
+            style={styles.searchField}
+            placeholder="Search by City..."
+            value={searchQuery}
+            onChangeText={handleSearch}
+          />
+          {filteredCities.length > 0 && (
+            <FlatList
+              style={styles.dropdown}
+              data={filteredCities}
+              keyExtractor={(item, index) => index.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.dropdownItem} onPress={() => handleCitySelect(item)}>
+                  <Text style={styles.dropdownText}>{item.city}, {item.state}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          )}
+        </View>
 
         {testResult && (
           <View style={styles.eventContainer}>
@@ -185,17 +177,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
   },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 50,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '80%',
-  },
-  bottomText: {
-    color: 'white',
-    fontSize: 18,
-  },
   searchField: {
     width: '80%',
     padding: 10,
@@ -206,35 +187,24 @@ const styles = StyleSheet.create({
     color: 'white',
     backgroundColor: '#333',
   },
-  eventContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    padding: 10,
-    borderRadius: 5,
-    marginTop: 20,
-  },
-  eventText: {
-    color: 'black',
-    fontSize: 16,
-  },
   dropdown: {
-      width: '80%',
-      backgroundColor: '#fff',
-      borderColor: '#ccc',
-      borderWidth: 1,
-      borderRadius: 10,
-      marginTop: 5,
-      maxHeight: 150, // Limit height of dropdown
-    },
-    dropdownItem: {
-      padding: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: '#ccc',
-    },
-    dropdownText: {
-      fontSize: 16,
-      color: '#333',
-    },
+    width: '80%',
+    backgroundColor: '#fff',
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 10,
+    marginTop: 5,
+    maxHeight: 150,
+  },
+  dropdownItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: '#333',
+  },
 });
+
 export default WelcomeScreen;
-
-
