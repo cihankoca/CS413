@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ImageBackground, StyleSheet, TextInput, FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import OpenAI from "openai";
 
 const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose', 'Boston'];
 
 
 //Don't commit API keys until we get them as environment variables
-const PLACES_API_KEY = 'fsq33xss/5S2efhJGAbF3I194EWy2+VuqgpTPFoZ4NcbjQY='//zach has this (also pinned in discord)
+const PLACES_API_KEY = ''//zach has this (also pinned in discord)
 const OPENAI_API_KEY = '' //cole has this (also pinned in discord)
 const Geocode_API_KEY = '' //zach has this 
 
@@ -94,6 +95,48 @@ const WelcomeScreen = () => {
 
   }
 
+  async function openAITest()
+  {
+    
+  
+    const openai = new OpenAI({
+      apiKey: OPENAI_API_KEY,  
+  });
+  
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",  
+        messages: [
+          { role: "system", content: "You are a helpful assistant." },
+          { role: "user", content: "just say hi" },
+        ],
+      });
+  
+      console.log(completion.choices[0].message);
+    } catch (error) {
+      console.error("Error with OpenAI API:", error);
+    }
+  } 
+
+  async function getCoordinates(address: string)
+  {
+
+    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${Geocode_API_KEY}`);
+    
+    if (!response.ok) {
+        throw new Error('Network response was not ok');
+    }
+
+    const data = await response.json();
+    if (data.status === 'OK') {
+        const { lat, lng } = data.results[0].geometry.location;
+        return { latitude: lat, longitude: lng };
+    } else {
+        throw new Error('Geocoding failed: ' + data.status);
+    }
+}
+
+
 
   // Filter cities based on user input
   const handleSearch = (text) => {
@@ -121,6 +164,25 @@ const WelcomeScreen = () => {
 
   useEffect(() => {
 
+
+    const userAddress = "1600 Amphitheatre Parkway, Mountain View, CA"; // This can come from a user input (can be imperfect...havent tested thoroughly though)
+    getCoordinates(userAddress)
+        .then(coords => console.log(coords))
+        .catch(error => console.error(error));
+
+  },[]);
+
+
+  useEffect(() => {
+
+    openAITest();
+
+
+  },[]);
+
+
+  useEffect(() => {
+
     placesSearch({
       query: 'nightlife',
       ll: '41.8781,-87.6298',
@@ -129,9 +191,6 @@ const WelcomeScreen = () => {
       open_now: true,
       limit: 10,
     });  //an example usage. categories section can use the interface for our own categories. You shoudlnt have to worry about inputting raw category codes...
-
-    
-
 
 
   },[]);
