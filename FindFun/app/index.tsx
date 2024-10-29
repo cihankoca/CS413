@@ -50,7 +50,6 @@ const WelcomeScreen = () => {
     setLocation(currentLocation);
   };
 
-  // Fetch cities using Google Geocoding API
   const handleSearch = async (text) => {
     setSearchQuery(text);
 
@@ -60,6 +59,7 @@ const WelcomeScreen = () => {
     }
 
     try {
+      // Search for cities without country restriction
       const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(text)}&key=${GEOCODING_API_KEY}`;
       const response = await fetch(url);
       const data = await response.json();
@@ -68,11 +68,18 @@ const WelcomeScreen = () => {
         const cities = data.results.map(result => {
           const cityComponent = result.address_components.find(comp => comp.types.includes('locality'));
           const stateComponent = result.address_components.find(comp => comp.types.includes('administrative_area_level_1'));
+          const countryComponent = result.address_components.find(comp => comp.types.includes('country'));
 
-          if (cityComponent && stateComponent) {
+          // Extracting longitude and latitude
+          const location = result.geometry.location;
+
+          if (cityComponent && countryComponent) {
             return {
               city: cityComponent.long_name,
-              state: stateComponent.short_name,
+              state: stateComponent ? stateComponent.short_name : null, // State if available
+              country: countryComponent.long_name,
+              lat: location.lat,
+              lng: location.lng,
             };
           }
           return null;
@@ -88,11 +95,24 @@ const WelcomeScreen = () => {
     }
   };
 
-  const handleCitySelect = (city) => {
-    setSearchQuery(`${city.city}, ${city.state}`);
-    setFilteredCities([]);
-    navigation.navigate('CityDescription', { city: city.city });
-  };
+
+ const handleCitySelect = async (city) => {
+   try {
+     // Log the selected city details for debugging
+     console.log(`Selected city: ${city.city}, ${city.state || ''}, ${city.country}`);
+     console.log(`Latitude: ${city.lat}, Longitude: ${city.lng}`);
+
+     // Navigate to City Description screen with city name and its coordinates
+     navigation.navigate('CityDescription', {
+       city: city.city,
+       latitude: city.lat,
+       longitude: city.lng,
+     });
+   } catch (error) {
+     console.error('Error handling city selection:', error);
+   }
+ };
+
 
   return (
     <ImageBackground
@@ -124,7 +144,9 @@ const WelcomeScreen = () => {
               keyExtractor={(item, index) => index.toString()}
               renderItem={({ item }) => (
                 <TouchableOpacity style={styles.dropdownItem} onPress={() => handleCitySelect(item)}>
-                  <Text style={styles.dropdownText}>{item.city}, {item.state}</Text>
+                  <Text style={styles.dropdownText}>
+                    {item.city}, {item.state ? `${item.state}, ` : ''}{item.country}
+                  </Text>
                 </TouchableOpacity>
               )}
             />
@@ -172,8 +194,12 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
   },
-  searchField: {
+  container: {
     width: '80%',
+    alignSelf: 'center',
+  },
+  searchField: {
+    width: '100%',
     padding: 10,
     borderWidth: 1,
     borderColor: '#ccc',
@@ -181,9 +207,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'white',
     backgroundColor: '#333',
+    alignSelf: 'center',
   },
   dropdown: {
-    width: '80%',
+    width: '100%',
     backgroundColor: '#fff',
     borderColor: '#ccc',
     borderWidth: 1,
@@ -201,5 +228,6 @@ const styles = StyleSheet.create({
     color: '#333',
   },
 });
+
 
 export default WelcomeScreen;

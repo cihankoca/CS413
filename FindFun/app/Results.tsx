@@ -5,42 +5,18 @@ import { useRoute } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
-const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY; // foursquare api in discord
-const Geocode_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEOENCODING_API_KEY;
+const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY;
 
 const ResultsPage = () => {
     const route = useRoute();
-    const { selectedActivities, city } = route.params;
+    const { selectedActivities, city, latitude, longitude } = route.params; // Pull the latitude and longitude from route params
 
     const [locations, setLocations] = useState([]);
-    const [cityCoordinates, setCityCoordinates] = useState(null); // To store city coordinates
     const [loading, setLoading] = useState(true);
 
-    // Fetch city coordinates using Google Geocoding API
-    const fetchCityCoordinates = async (cityName) => {
-        try {
-            const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(cityName)}&key=${Geocode_API_KEY}`;
-            const response = await fetch(url);
-            const data = await response.json();
-
-            if (data.status === 'OK' && data.results.length > 0) {
-                const { lat, lng } = data.results[0].geometry.location;
-                setCityCoordinates({ latitude: lat, longitude: lng });
-            } else {
-                console.error('No results found for the city:', cityName);
-            }
-        } catch (error) {
-            console.error('Error fetching city coordinates:', error);
-        }
-    };
-
-    // Fetch data based on selected activities
     useEffect(() => {
         const fetchActivityLocations = async () => {
             try {
-                // Fetch city coordinates first
-                await fetchCityCoordinates(city);
-
                 const activityPromises = selectedActivities.map(async (activity) => {
                     const url = `https://api.foursquare.com/v3/places/search?query=${activity}&limit=5&near=${city}`;
                     console.log(`Fetching data for activity: ${activity} in city: ${city}`);
@@ -52,7 +28,6 @@ const ResultsPage = () => {
                     });
                     const data = await response.json();
 
-                    // Check if data.results exists and is not empty
                     if (!data.results || data.results.length === 0) {
                         console.warn(`No results found for activity: ${activity}`);
                         return [];
@@ -100,27 +75,23 @@ const ResultsPage = () => {
             ) : (
                 <>
                     {/* Map Section - Top Half */}
-                    {cityCoordinates ? (
-                        <MapView
-                            style={styles.map}
-                            initialRegion={{
-                                latitude: cityCoordinates.latitude,  // City Latitude
-                                longitude: cityCoordinates.longitude, // City Longitude
-                                latitudeDelta: 0.05,
-                                longitudeDelta: 0.05,
-                            }}
-                        >
-                            {locations.map((location, index) => (
-                                <Marker
-                                    key={index}
-                                    coordinate={{ latitude: location.latitude, longitude: location.longitude }}
-                                    title={location.label}
-                                />
-                            ))}
-                        </MapView>
-                    ) : (
-                        <Text>Loading map...</Text>
-                    )}
+                    <MapView
+                        style={styles.map}
+                        initialRegion={{
+                            latitude: latitude,
+                            longitude: longitude,
+                            latitudeDelta: 0.05,
+                            longitudeDelta: 0.05,
+                        }}
+                    >
+                        {locations.map((location, index) => (
+                            <Marker
+                                key={index}
+                                coordinate={{ latitude: location.latitude, longitude: location.longitude }}
+                                title={location.label}
+                            />
+                        ))}
+                    </MapView>
 
                     {/* Results Section - Lower Half */}
                     <ScrollView style={styles.resultsContainer}>
@@ -159,7 +130,7 @@ const styles = StyleSheet.create({
     },
     map: {
         width: '100%',
-        height: '50%', // Top half of the screen
+        height: '50%',
     },
     loader: {
         flex: 1,

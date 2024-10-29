@@ -2,13 +2,12 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ImageBackground } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-
 import { useNavigation, useRoute } from '@react-navigation/native';
 
-const ActivityPage: React.FC<ActivityPageProps> = () => {
+const ActivityPage = () => {
     const navigation = useNavigation();
     const route = useRoute();
-    const { city } = route.params; // Get the city passed from CityScreen
+    const { city, latitude, longitude } = route.params; // Get the city, latitude, and longitude passed from CityScreen
 
     const [selectedActivities, setSelectedActivities] = useState({
         food: false,
@@ -35,7 +34,13 @@ const ActivityPage: React.FC<ActivityPageProps> = () => {
             const selected = (Object.keys(selectedActivities) as (keyof typeof selectedActivities)[])
                 .filter((activity) => selectedActivities[activity]);
 
-    navigation.navigate('Results', { selectedActivities: selected, city });
+            // Navigate to ResultsPage with selected activities and the city details (latitude, longitude)
+            navigation.navigate('Results', {
+                selectedActivities: selected,
+                city,
+                latitude,
+                longitude
+            });
         }
     };
 
@@ -161,7 +166,6 @@ const ActivityPage: React.FC<ActivityPageProps> = () => {
                         </View>
                     </TouchableOpacity>
 
-
                     <TouchableOpacity
                         style={[
                             styles.activity,
@@ -206,7 +210,7 @@ const styles = StyleSheet.create({
     scrollContainer: {
         paddingVertical: 43,
         paddingHorizontal: 20,
-        marginTop: 60
+        marginTop: 60,
     },
     row: {
         flexDirection: 'row',
