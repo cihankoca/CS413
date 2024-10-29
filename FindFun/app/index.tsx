@@ -7,9 +7,9 @@ const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Phi
 
 
 //Don't commit API keys until we get them as environment variables
-const PLACES_API_KEY = ''//zach has this (also pinned in discord)
-const OPENAI_API_KEY = '' //cole has this (also pinned in discord)
-const Geocode_API_KEY = '' //zach has this 
+const PLACES_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY;//zach has this (also pinned in discord)
+const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY//cole has this (also pinned in discord)
+const Geocode_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEOENCODING_API_KEY;  //zach has this 
 
 //we can use this to basically make our own categories and name them whatever. When user does a search, come here and splice the respective values together with a comma between them and add it to the API request
 const categoryMap: { [key: string]: string } = {  //took the keys from Chihan's work in the UI. Probably want to refine
@@ -28,7 +28,7 @@ const categoryMap: { [key: string]: string } = {  //took the keys from Chihan's 
 
 interface SearchParams { //basically a struct for search parameters. create one and change it as user messes with options/search. Then pass it to the function and a search will be made with these params
   query?: string;
-  ll?: string; // latitude,longitude
+  ll?: string; // latitude,longitude  /required
   radius?: number;
   categories?: string; // comma-separated category IDs. 
   fields?: string; // comma-separated fields
@@ -38,6 +38,8 @@ interface SearchParams { //basically a struct for search parameters. create one 
   near?: string;
   sort?: string;
   limit?: number;
+  exclude_all_chains?: boolean;
+
 }
 
 
@@ -74,10 +76,12 @@ const WelcomeScreen = () => {
     if (params.fields) urlParams.append('fields', params.fields);
     if (params.min_price !== undefined) urlParams.append('min_price', params.min_price.toString());
     if (params.max_price !== undefined) urlParams.append('max_price', params.max_price.toString());
-    if (params.open_now) urlParams.append('open_now', 'true');
+    if (params.open_now) urlParams.append('open_now', params.open_now.toString());
     if (params.near) urlParams.append('near', params.near);
     if (params.sort) urlParams.append('sort', params.sort);
     if (params.limit) urlParams.append('limit', params.limit.toString());
+    if (params.exclude_all_chains) urlParams.append('exclude_all_chains', params.exclude_all_chains.toString());
+
 
 
     const final_URL = `${base_URL}?${urlParams.toString()}`;
@@ -166,16 +170,16 @@ const WelcomeScreen = () => {
 
 
     const userAddress = "1600 Amphitheatre Parkway, Mountain View, CA"; // This can come from a user input (can be imperfect...havent tested thoroughly though)
-    getCoordinates(userAddress)
-        .then(coords => console.log(coords))
-        .catch(error => console.error(error));
+   // getCoordinates(userAddress)
+        //.then(coords => console.log(coords))
+        //.catch(error => console.error(error));
 
   },[]);
 
 
   useEffect(() => {
 
-    openAITest();
+    //openAITest();
 
 
   },[]);
@@ -183,14 +187,30 @@ const WelcomeScreen = () => {
 
   useEffect(() => {
 
-    placesSearch({
-      query: 'nightlife',
-      ll: '41.8781,-87.6298',
-      radius: 1000,
-      categories: '13065,13032',
-      open_now: true,
-      limit: 10,
-    });  //an example usage. categories section can use the interface for our own categories. You shoudlnt have to worry about inputting raw category codes...
+    
+
+    let search: SearchParams = {};
+
+
+    search.ll = '41.8781,-87.6298';
+    search.radius = 1000;
+    search.categories = "13000";
+    search.limit = 1;
+    search.exclude_all_chains = true;
+
+    console.log("\n");
+    placesSearch(search);  
+    //an example usage. categories section can use the interface for our own categories. You shoudlnt have to worry about inputting raw category codes...
+
+    search.sort = "RATING";
+    placesSearch(search);
+
+    search.sort = "POPULARITY";
+    placesSearch(search);
+
+    search.radius += 1000;
+    placesSearch(search);
+
 
 
   },[]);
