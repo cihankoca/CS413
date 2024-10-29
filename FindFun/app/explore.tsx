@@ -1,102 +1,186 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { StyleSheet, Image, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, TextInput, TouchableOpacity, ScrollView, Text } from 'react-native';
+import { fetchEvents, initDatabase, getDBConnection } from '@/utils/database';
 
-import { Collapsible } from '@/components/Collapsible';
-import { ExternalLink } from '@/components/ExternalLink';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+export default function TestScreen() {
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [radius, setRadius] = useState('5000');
+  const [results, setResults] = useState<any[]>([]);
+  const [source, setSource] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dbInitialized, setDbInitialized] = useState(false);
 
-export default function TabTwoScreen() {
+  useEffect(() => {
+    const initDB = async () => {
+      try {
+        await initDatabase();
+        setDbInitialized(true);
+        console.log('Database initialized successfully');
+      } catch (err) {
+        console.error('Error initializing database:', err);
+        setError('Failed to initialize database');
+      }
+    };
+
+    initDB();
+  }, []);
+
+  const handleSearch = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = {
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude),
+        categoryId: categoryId ? parseInt(categoryId) : undefined,
+        radius: parseInt(radius)
+      };
+
+      console.log('Search params:', params);
+      const events = await fetchEvents(params);
+      console.log(`Found ${events.length} events`);
+      if (events.length > 0) {
+        console.log('Sample event:', JSON.stringify(events[0], null, 2));
+      }
+      setResults(events);
+
+    } catch (err) {
+      console.error('Search error:', err);
+      setError(err.message || 'An error occurred while searching');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={<Ionicons size={310} name="code-slash" style={styles.headerImage} />}>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Explore</ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image source={require('@/assets/images/react-logo.png')} style={{ alignSelf: 'center' }} />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Custom fonts">
-        <ThemedText>
-          Open <ThemedText type="defaultSemiBold">app/_layout.tsx</ThemedText> to see how to load{' '}
-          <ThemedText style={{ fontFamily: 'SpaceMono' }}>
-            custom fonts such as this one.
-          </ThemedText>
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/versions/latest/sdk/font">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user's current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful <ThemedText type="defaultSemiBold">react-native-reanimated</ThemedText> library
-          to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      <View style={styles.form}>
+        <TextInput
+          style={styles.input}
+          placeholder="Latitude (e.g., 41.8781)"
+          value={latitude}
+          onChangeText={setLatitude}
+          keyboardType="numeric"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Longitude (e.g., -87.6298)"
+          value={longitude}
+          onChangeText={setLongitude}
+          keyboardType="numeric"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Category ID (e.g., 13000)"
+          value={categoryId}
+          onChangeText={setCategoryId}
+          keyboardType="numeric"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Radius in meters (default: 5000)"
+          value={radius}
+          onChangeText={setRadius}
+          keyboardType="numeric"
+        />
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleSearch}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? 'Searching...' : 'Search'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {error && (
+        <Text style={styles.error}>{error}</Text>
+      )}
+
+      {source && (
+        <Text style={styles.source}>Data source: {source}</Text>
+      )}
+
+      <ScrollView style={styles.results}>
+        {results.map((result, index) => (
+          <View key={index} style={styles.resultItem}>
+            <Text style={styles.resultTitle}>{result.name || 'Unnamed Venue'}</Text>
+            <Text>ID: {result.fsq_id || 'N/A'}</Text>
+            <Text>Distance: {result.distance ? `${result.distance}m` : 'N/A'}</Text>
+            <Text>Categories: {
+              result.categories
+                ? result.categories.map((c: any) => c.name).join(', ')
+                : 'None'
+            }</Text>
+            <Text>Location: {
+              result.location
+                ? `${result.location.address || ''}, ${result.location.locality || ''}`
+                : 'No address'
+            }</Text>
+            {result.geocodes && result.geocodes.main && (
+              <Text>
+                Coordinates: {result.geocodes.main.latitude}, {result.geocodes.main.longitude}
+              </Text>
+            )}
+          </View>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#fff',
   },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
+  form: {
+    gap: 10,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    padding: 10,
+    fontSize: 16,
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    padding: 15,
+    borderRadius: 5,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  error: {
+    color: 'red',
+    marginTop: 10,
+  },
+  source: {
+    marginTop: 10,
+    fontWeight: 'bold',
+    color: '#007AFF',
+  },
+  results: {
+    marginTop: 20,
+  },
+  resultItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    gap: 5,
+  },
+  resultTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 5,
   },
 });

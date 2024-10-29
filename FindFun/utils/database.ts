@@ -1,5 +1,8 @@
 import * as SQLite from 'expo-sqlite';
 import * as FileSystem from 'expo-file-system';
+import { supabase } from './supabase';
+import { Platform } from 'react-native';
+import { FOURSQUARE_CATEGORIES } from './foursquareCategories';
 
 const DATABASE_NAME = 'FindFun.db';
 
@@ -26,29 +29,37 @@ for (const row of allRows) {
 
 export const getDBConnection = () => {
   console.log('Opening database connection');
-  return SQLite.openDatabaseSync(DATABASE_NAME);
+  try {
+    const db = SQLite.openDatabaseSync(DATABASE_NAME);
+    return db;
+  } catch (error) {
+    console.error('Error opening database:', error);
+    throw error;
+  }
 };
 
 export async function initDatabase() {
   console.log('Initializing database');
+  const db = getDBConnection();
 
-  /////////////////////////////////////////////////////////////////
-  // UNCOMMENT THIS CODE TO DELETE THE DATABASE FILE ON APP STARTUP
-  // Check if the database file exists
-  const dbPath = `${FileSystem.documentDirectory}SQLite/${DATABASE_NAME}`;
-  const fileInfo = await FileSystem.getInfoAsync(dbPath);
-  
-  if (fileInfo.exists) {
-    console.log('Existing database found. Deleting it.');
-    await FileSystem.deleteAsync(dbPath);
-  }
-  /////////////////////////////////////////////////////////////////
+  // Ensure the SQLite directory exists with proper permissions
+  const dbDirectory = `${FileSystem.documentDirectory}SQLite`;
+  await FileSystem.makeDirectoryAsync(dbDirectory, {
+    intermediates: true
+  }).catch(e => console.log('Directory may already exist:', e));
 
-  // Ensure the SQLite directory exists
-  await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}SQLite`, { intermediates: true });
-
-  // Open (or create) the database
-  const db = await SQLite.openDatabaseSync(DATABASE_NAME);
+  // Set proper permissions on the directory
+  await FileSystem.getInfoAsync(dbDirectory).then(async ({ exists }) => {
+    if (exists) {
+      console.log('SQLite directory exists');
+      // On iOS, ensure directory has proper permissions
+      if (Platform.OS === 'ios') {
+        await FileSystem.makeDirectoryAsync(dbDirectory, {
+          intermediates: true
+        }).catch(e => console.log('Permissions already set:', e));
+      }
+    }
+  });
 
   try {
     console.log('Creating tables');
@@ -438,47 +449,47 @@ export async function insertFeatures(db: SQLite.SQLiteDatabase, eventId: number,
 // Function to insert all data for an event
 export async function insertFullEventData(db: SQLite.SQLiteDatabase, eventData: any) {
   const eventId = await insertEvent(db, eventData);
-  
+
   for (const category of eventData.categories || []) {
     await insertCategory(db, eventId, category);
   }
-  
+
   for (const chain of eventData.chains || []) {
     await insertChain(db, eventId, chain);
   }
-  
+
   for (const [type, geocode] of Object.entries(eventData.geocodes || {})) {
     await insertGeocode(db, eventId, type, geocode);
   }
-  
+
   if (eventData.hours) {
     await insertHours(db, eventId, eventData.hours);
   }
-  
+
   if (eventData.location) {
     await insertLocation(db, eventId, eventData.location);
   }
-  
+
   for (const photo of eventData.photos || []) {
     await insertPhoto(db, eventId, photo);
   }
-  
+
   if (eventData.social_media) {
     await insertSocialMedia(db, eventId, eventData.social_media);
   }
-  
+
   if (eventData.stats) {
     await insertStats(db, eventId, eventData.stats);
   }
-  
+
   for (const taste of eventData.tastes || []) {
     await insertTaste(db, eventId, taste);
   }
-  
+
   for (const tip of eventData.tips || []) {
     await insertTip(db, eventId, tip);
   }
-  
+
   if (eventData.features) {
     await insertFeatures(db, eventId, eventData.features);
   }
@@ -552,6 +563,18 @@ export async function getEventsFromLocalDB(db: SQLite.SQLiteDatabase): Promise<a
 // Function used by frontend to save events to local DB
 export async function saveEventsToLocalDB(db: SQLite.SQLiteDatabase, events: any[]): Promise<void> {
   try {
+
+    // Test write permissions
+    console.log('Testing database write permissions...');
+    try {
+      await db.runAsync('CREATE TABLE IF NOT EXISTS test_write (id INTEGER PRIMARY KEY)');
+      await db.runAsync('DROP TABLE test_write');
+      console.log('Write permissions confirmed');
+    } catch (e) {
+      console.error('Database write test failed:', e);
+      throw new Error('Database is read-only');
+    }
+
     await db.withTransactionAsync(async () => {
       for (const event of events) {
         // Insert main event data
@@ -571,12 +594,8 @@ export async function saveEventsToLocalDB(db: SQLite.SQLiteDatabase, events: any
         const eventId = result.lastInsertRowId;
 
         // Insert categories
-        for (const category of event.categories || []) {
-          await db.runAsync(
-            `INSERT OR REPLACE INTO categories (event_id, category_id, name, icon_id, icon_prefix, icon_suffix)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [eventId, category.id, category.name, category.icon?.id, category.icon?.prefix, category.icon?.suffix]
-          );
+        if (event.categories && event.categories.length > 0) {
+          await saveCategoriesToLocalDB(db, eventId, event.categories);
         }
 
         // Insert chains
@@ -701,5 +720,400 @@ export async function saveEventsToLocalDB(db: SQLite.SQLiteDatabase, events: any
   } catch (error) {
     console.error('Error saving events to local DB:', error);
     throw error;
+  }
+}
+
+interface FetchEventsParams {
+  latitude: number;
+  longitude: number;
+  categoryId?: number;
+  radius?: number; // in meters
+}
+
+// Function used by frontend to fetch events from DB or Foursquare API
+export async function fetchEvents({
+  latitude,
+  longitude,
+  categoryId,
+  radius = 5000
+}: FetchEventsParams): Promise<any[]> {
+  const db = getDBConnection();
+
+  try {
+    console.log('Attempting to fetch events...');
+    console.log(`Coordinates: ${latitude}, ${longitude}`);
+    console.log(`Category ID: ${categoryId || 'none'}, Radius: ${radius}m`);
+
+    // Check local database
+    console.log('Querying local database...');
+    const localEvents = await queryLocalEvents(db, { latitude, longitude, categoryId, radius });
+    if (localEvents.length > 0) {
+      console.log(`Found ${localEvents.length} events in local database`);
+      return localEvents;
+    }
+    console.log('No events found in local database');
+
+    // Check cloud database
+    console.log('Querying cloud database...');
+    const cloudEvents = await queryCloudEvents({ latitude, longitude, categoryId, radius });
+    if (cloudEvents.length > 0) {
+      console.log(`Found ${cloudEvents.length} events in cloud database`);
+      await saveEventsToLocalDB(db, cloudEvents);
+      return cloudEvents;
+    }
+    console.log('No events found in cloud database');
+
+    // Query Foursquare
+    console.log('Querying Foursquare API...');
+    const foursquareEvents = await queryFoursquareAPI({ latitude, longitude, categoryId, radius });
+    if (foursquareEvents.length > 0) {
+      console.log(`Found ${foursquareEvents.length} events from Foursquare API`);
+      await saveEventsToLocalDB(db, foursquareEvents);
+      await saveEventsToCloudDB(foursquareEvents);
+      return foursquareEvents;
+    }
+    console.log('No events found from Foursquare API');
+
+    return [];
+  } catch (error) {
+    console.error('Error in fetchEvents:', error);
+    throw error;
+  }
+}
+
+async function queryLocalEvents(
+  db: SQLite.SQLiteDatabase,
+  { latitude, longitude, categoryId, radius }: FetchEventsParams
+): Promise<any[]> {
+  try {
+    console.log('Building local database query...');
+
+    const metersPerDegree = 111111;
+    const latDelta = radius / metersPerDegree;
+    const lonDelta = radius / (metersPerDegree * Math.cos(latitude * Math.PI / 180));
+
+    let query = `
+      SELECT DISTINCT e.* 
+      FROM events e
+      JOIN geocodes g ON e.id = g.event_id
+      WHERE g.type = 'main'
+      AND g.latitude BETWEEN ? AND ?
+      AND g.longitude BETWEEN ? AND ?
+    `;
+
+    const params: any[] = [
+      latitude - latDelta,
+      latitude + latDelta,
+      longitude - lonDelta,
+      longitude + lonDelta
+    ];
+
+    if (categoryId) {
+      query += `
+        AND e.id IN (
+          SELECT event_id 
+          FROM categories 
+          WHERE category_id = ?
+        )
+      `;
+      params.push(categoryId);
+    }
+
+    query += ` ORDER BY ((g.latitude - ?) * (g.latitude - ?) + 
+                        (g.longitude - ?) * (g.longitude - ?))`;
+
+    params.push(latitude, latitude, longitude, longitude);
+
+    console.log('Executing local database query...');
+    const events = await db.getAllAsync(query, params);
+
+    if (events.length > 0) {
+      console.log(`Found ${events.length} events in local database`);
+      return await Promise.all(events.map(event => getFullEventData(db, event.id)));
+    }
+
+    return [];
+  } catch (error) {
+    console.error('Error querying local events:', error);
+    throw error;
+  }
+}
+
+async function queryCloudEvents({ latitude, longitude, categoryId, radius }: FetchEventsParams): Promise<any[]> {
+  try {
+    console.log('Calling cloud database nearby_events function...');
+    // Call the nearby_events function
+    const { data: events, error: eventsError } = await supabase
+      .rpc('nearby_events', {
+        lat: latitude,
+        lon: longitude,
+        radius_meters: radius
+      });
+
+    if (eventsError) throw eventsError;
+
+    // If no events found, return empty array
+    if (!events || events.length === 0) return [];
+    console.log(`Found ${events.length} nearby events in cloud database`);
+
+    // Get the event IDs
+    const eventIds = events.map(event => event.id);
+
+    // Fetch related data
+    console.log('Fetching related geocodes data...');
+    const { data: geocodes, error: geocodesError } = await supabase
+      .from('geocodes')
+      .select('*')
+      .in('event_id', eventIds)
+      .eq('type', 'main');
+
+    if (geocodesError) throw geocodesError;
+
+    console.log('Fetching related categories data...');
+    const { data: categories, error: categoriesError } = await supabase
+      .from('categories')
+      .select('*')
+      .in('event_id', eventIds);
+
+    if (categoriesError) throw categoriesError;
+
+    // Filter by category if needed
+    let filteredEvents = events;
+    if (categoryId) {
+      console.log(`Filtering events by category ID: ${categoryId}`);
+      const relevantEventIds = categories
+        .filter(cat => cat.category_id === categoryId)
+        .map(cat => cat.event_id);
+      filteredEvents = events.filter(event => relevantEventIds.includes(event.id));
+      console.log(`${filteredEvents.length} events match the category filter`);
+    }
+
+    // Combine the data
+    console.log('Combining event data with related information...');
+    const transformedData = filteredEvents.map(event => {
+      const eventGeocodes = geocodes.filter(g => g.event_id === event.id);
+      const eventCategories = categories.filter(c => c.event_id === event.id);
+
+      return {
+        ...event,
+        geocodes: {
+          main: {
+            latitude: eventGeocodes[0]?.latitude || 0,
+            longitude: eventGeocodes[0]?.longitude || 0
+          }
+        },
+        categories: eventCategories
+      };
+    });
+
+    return transformedData;
+
+  } catch (error) {
+    console.error('Error querying cloud events:', error);
+    throw error;
+  }
+}
+
+async function saveEventsToCloudDB(events: any[]): Promise<void> {
+  try {
+    console.log(`Saving ${events.length} events to cloud database...`);
+    for (const event of events) {
+      // Insert main event data
+      console.log(`Saving event: ${event.name}`);
+      const { data: eventData, error: eventError } = await supabase
+        .from('events')
+        .upsert({
+          fsq_id: event.fsq_id,
+          name: event.name,
+          description: event.description,
+          tel: event.tel,
+          website: event.website,
+          email: event.email,
+          social_media: event.social_media,
+          rating: event.rating,
+          stats: event.stats,
+          hours: event.hours,
+          price: event.price,
+          photos: event.photos,
+          tips: event.tips,
+          tastes: event.tastes,
+          features: event.features
+        }, {
+          onConflict: 'fsq_id',
+          ignoreDuplicates: false
+        })
+        .select()
+        .single();
+
+      if (eventError) throw eventError;
+
+      // Insert geocodes with latitude and longitude
+      if (event.geocodes?.main) {
+        console.log('Saving geocode data...');
+        const { error: geocodeError } = await supabase
+          .from('geocodes')
+          .upsert({
+            event_id: eventData.id,
+            type: 'main',
+            latitude: event.geocodes.main.latitude,
+            longitude: event.geocodes.main.longitude
+          });
+
+        if (geocodeError) {
+          console.error('Error inserting geocode:', geocodeError);
+          throw geocodeError;
+        }
+      }
+
+      // Insert categories
+      if (event.categories && event.categories.length > 0) {
+        console.log(`Saving ${event.categories.length} categories...`);
+        const categoryRecords = event.categories.flatMap(category => {
+          // Get all parent category IDs for this category
+          const hierarchyIds = getCategoryHierarchy(category.name);
+
+          // Create a record for each category ID in the hierarchy
+          return hierarchyIds.map(categoryId => ({
+            event_id: eventData.id,
+            category_id: categoryId,
+            name: category.name,
+            icon_id: category.icon?.id,
+            icon_prefix: category.icon?.prefix,
+            icon_suffix: category.icon?.suffix
+          }));
+        });
+
+        console.log('Saving category records:', categoryRecords);
+
+        const { error: categoryError } = await supabase
+          .from('categories')
+          .upsert(categoryRecords);
+
+        if (categoryError) {
+          console.error('Error inserting categories:', categoryError);
+          throw categoryError;
+        }
+      }
+    }
+    console.log('Successfully saved all events to cloud database');
+  } catch (error) {
+    console.error('Error saving to cloud database:', error);
+    throw error;
+  }
+}
+
+async function queryFoursquareAPI({ latitude, longitude, categoryId, radius }: FetchEventsParams): Promise<any[]> {
+  try {
+    console.log('Preparing Foursquare API request...');
+    const options = {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+        Authorization: process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY as string
+      }
+    };
+
+    // Build query URL with parameters
+    const queryParams = new URLSearchParams({
+      ll: `${latitude},${longitude}`,
+      radius: radius.toString(),
+      sort: 'DISTANCE',
+      limit: '50'
+    });
+
+    // Add category if provided
+    if (categoryId) {
+      console.log(`Adding category ${categoryId} to Foursquare query`);
+      queryParams.append('categories', categoryId.toString());
+    }
+
+    const url = `https://api.foursquare.com/v3/places/search?${queryParams.toString()}`;
+    console.log('Sending request to Foursquare API...');
+    const response = await fetch(url, options);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(`Foursquare API error: ${data.message || response.statusText}`);
+    }
+
+    const results = data.results || [];
+    console.log(`Received ${results.length} results from Foursquare API`);
+    return results;
+
+  } catch (error) {
+    console.error('Error querying Foursquare API:', error);
+    throw error;
+  }
+}
+
+function getCategoryHierarchy(categoryString: string): number[] {
+  console.log('Getting hierarchy for category:', categoryString);
+  const categories = categoryString.split(' > ');
+  const categoryIds: number[] = [];
+
+  let currentPath = '';
+  categories.forEach((category, index) => {
+    currentPath = index === 0 ? category : `${currentPath} > ${category}`;
+    console.log('Looking for category path:', currentPath);
+    
+    // Log a few sample categories to debug
+    console.log('First few available categories:', 
+      FOURSQUARE_CATEGORIES.slice(0, 3).map(c => c.category_label)
+    );
+    
+    const matchingCategory = FOURSQUARE_CATEGORIES.find(c =>
+      c.category_label === currentPath
+    );
+    
+    if (matchingCategory) {
+      console.log('Found matching category:', matchingCategory);
+      categoryIds.push(parseInt(matchingCategory.category_id));
+    } else {
+      console.log('No matching category found for:', currentPath);
+    }
+  });
+
+  console.log('Returning category IDs:', categoryIds);
+  return categoryIds;
+}
+
+// Add this helper function to log the raw category data from Foursquare
+async function saveCategoriesToLocalDB(db: SQLite.SQLiteDatabase, eventId: number, categories: any[]) {
+  console.log('Raw categories from Foursquare:', JSON.stringify(categories, null, 2));
+  
+  for (const category of categories) {
+    const hierarchyIds = getCategoryHierarchy(category.name);
+    console.log(`Category ${category.name} mapped to IDs:`, hierarchyIds);
+    
+    if (hierarchyIds.length === 0) {
+      console.log('WARNING: No category IDs found for', category.name);
+      // Fallback: If it's a food-related place, add the dining category
+      if (category.name.toLowerCase().includes('restaurant') || 
+          category.name.toLowerCase().includes('cafe') ||
+          category.name.toLowerCase().includes('bar')) {
+        console.log('Adding fallback dining category ID');
+        hierarchyIds.push(13000); // Dining and Drinking
+      }
+    }
+    
+    for (const categoryId of hierarchyIds) {
+      await db.runAsync(`
+        INSERT OR REPLACE INTO categories (
+          event_id, 
+          category_id,
+          name,
+          icon_id,
+          icon_prefix,
+          icon_suffix
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `, [
+        eventId,
+        categoryId,
+        category.name,
+        category.icon?.id,
+        category.icon?.prefix,
+        category.icon?.suffix
+      ]);
+    }
   }
 }

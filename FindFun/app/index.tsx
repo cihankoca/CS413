@@ -29,7 +29,7 @@ const WelcomeScreen = () => {
       const final_URL = 'https://api.foursquare.com/v3/places/search?near=Chicago%2C%20IL&sort=RELEVANCE&'; // Test search
       const response = await fetch(final_URL, options);
       const data = await response.json();
-      console.log(data); // Log Foursquare API response
+      //console.log(data); // Log Foursquare API response
 
     } catch (error) {
       console.error('Error fetching data from Foursquare:', error);
