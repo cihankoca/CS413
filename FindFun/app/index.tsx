@@ -12,32 +12,27 @@ const WelcomeScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredCities, setFilteredCities] = useState([]);
   const [location, setLocation] = useState(null);
-  const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
-  const [testResult, setTestResult] = useState<string | null>(null);
-
-  // Retain Foursquare API Check
-  async function foursquareTest() {
-    try {
-      const options = {
-        method: 'GET',
-        headers: {
-          accept: 'application/json',
-          Authorization: FOURSQUARE_API_KEY
-        }
-      };
-
-      const final_URL = 'https://api.foursquare.com/v3/places/search?near=Chicago%2C%20IL&sort=RELEVANCE&'; // Test search
-      const response = await fetch(final_URL, options);
-      const data = await response.json();
-      console.log(data); // Log Foursquare API response
-
-    } catch (error) {
-      console.error('Error fetching data from Foursquare:', error);
-    }
-  }
 
   useEffect(() => {
-    foursquareTest(); // Run Foursquare API test
+    // Test Foursquare API
+    async function foursquareTest() {
+      try {
+        const options = {
+          method: 'GET',
+          headers: {
+            accept: 'application/json',
+            Authorization: FOURSQUARE_API_KEY
+          }
+        };
+        const final_URL = 'https://api.foursquare.com/v3/places/search?near=Chicago%2C%20IL&sort=RELEVANCE&';
+        const response = await fetch(final_URL, options);
+        const data = await response.json();
+        console.log(data);
+      } catch (error) {
+        console.error('Error fetching data from Foursquare:', error);
+      }
+    }
+    foursquareTest();
   }, []);
 
   const handleShareLocation = async () => {
@@ -46,45 +41,74 @@ const WelcomeScreen = () => {
       console.log('Permission to access location was denied');
       return;
     }
-    let currentLocation = await Location.getCurrentPositionAsync({});
-    setLocation(currentLocation);
+
+    try {
+      // Get the user's current location
+      let currentLocation = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = currentLocation.coords;
+
+      // Use Google Geocoding API to reverse geocode the coordinates to a city name
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GEOCODING_API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.status === 'OK' && data.results.length > 0) {
+        // Find the city from the address components
+        const cityComponent = data.results[0].address_components.find(comp => comp.types.includes('locality'));
+        const countryComponent = data.results[0].address_components.find(comp => comp.types.includes('country'));
+
+        if (cityComponent && countryComponent) {
+          const cityName = cityComponent.long_name;
+          const country = countryComponent.long_name;
+
+          // Log city details
+          console.log(`User's city: ${cityName}, ${country}`);
+          console.log(`Latitude: ${latitude}, Longitude: ${longitude}`);
+
+          // Navigate to City Description screen with city name and coordinates
+          navigation.navigate('CityDescription', {
+            city: cityName,
+            latitude: latitude,
+            longitude: longitude,
+          });
+        } else {
+          console.error('Could not determine city from location.');
+        }
+      } else {
+        console.error('Error fetching city from coordinates.');
+      }
+    } catch (error) {
+      console.error('Error fetching location or reverse geocoding:', error);
+    }
   };
 
   const handleSearch = async (text) => {
     setSearchQuery(text);
-
     if (text.trim() === '') {
       setFilteredCities([]);
       return;
     }
-
     try {
-      // Search for cities without country restriction
       const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(text)}&key=${GEOCODING_API_KEY}`;
       const response = await fetch(url);
       const data = await response.json();
-
       if (data.status === 'OK') {
         const cities = data.results.map(result => {
           const cityComponent = result.address_components.find(comp => comp.types.includes('locality'));
           const stateComponent = result.address_components.find(comp => comp.types.includes('administrative_area_level_1'));
           const countryComponent = result.address_components.find(comp => comp.types.includes('country'));
-
-          // Extracting longitude and latitude
           const location = result.geometry.location;
-
           if (cityComponent && countryComponent) {
             return {
               city: cityComponent.long_name,
-              state: stateComponent ? stateComponent.short_name : null, // State if available
+              state: stateComponent ? stateComponent.short_name : null,
               country: countryComponent.long_name,
               lat: location.lat,
               lng: location.lng,
             };
           }
           return null;
-        }).filter(city => city); // Filter out any null results
-
+        }).filter(city => city);
         setFilteredCities(cities);
       } else {
         setFilteredCities([]);
@@ -94,25 +118,6 @@ const WelcomeScreen = () => {
       setFilteredCities([]);
     }
   };
-
-
- const handleCitySelect = async (city) => {
-   try {
-     // Log the selected city details for debugging
-     console.log(`Selected city: ${city.city}, ${city.state || ''}, ${city.country}`);
-     console.log(`Latitude: ${city.lat}, Longitude: ${city.lng}`);
-
-     // Navigate to City Description screen with city name and its coordinates
-     navigation.navigate('CityDescription', {
-       city: city.city,
-       latitude: city.lat,
-       longitude: city.lng,
-     });
-   } catch (error) {
-     console.error('Error handling city selection:', error);
-   }
- };
-
 
   return (
     <ImageBackground
@@ -152,13 +157,6 @@ const WelcomeScreen = () => {
             />
           )}
         </View>
-
-        {testResult && (
-          <View style={styles.eventContainer}>
-            <Text style={styles.eventText}>{testResult}</Text>
-          </View>
-        )}
-
       </View>
     </ImageBackground>
   );
@@ -228,6 +226,5 @@ const styles = StyleSheet.create({
     color: '#333',
   },
 });
-
 
 export default WelcomeScreen;
