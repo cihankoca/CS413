@@ -35,6 +35,24 @@ const WelcomeScreen = () => {
     foursquareTest();
   }, []);
 
+  const handleCitySelect = async (city) => {
+    try {
+      // Log the selected city details for debugging
+      console.log(`Selected city: ${city.city}, ${city.state || ''}, ${city.country}`);
+      console.log(`Latitude: ${city.lat}, Longitude: ${city.lng}`);
+
+      // Navigate to City Description screen with city name and its coordinates
+      navigation.navigate('CityDescription', {
+        city: city.city,
+        latitude: city.lat,
+        longitude: city.lng,
+      });
+    } catch (error) {
+      console.error('Error handling city selection:', error);
+    }
+  };
+
+
   const handleShareLocation = async () => {
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
@@ -130,7 +148,7 @@ const WelcomeScreen = () => {
           <Text style={styles.buttonText}>
             {location
               ? `Lat: ${location.coords.latitude.toFixed(4)}, Long: ${location.coords.longitude.toFixed(4)}`
-              : 'Share location'}
+              : 'Use Current Location'}
           </Text>
         </TouchableOpacity>
 
