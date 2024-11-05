@@ -151,7 +151,7 @@ const BuildYourDay: React.FC = () => {
                         { role: 'system', content: 'You are a helpful assistant.' },  // System message to set the context
                         { role: 'user', content: input }  // User input
                     ],
-                    max_tokens: 100,
+                    max_tokens: 500, //max tokens for test
                 }),
             });
 
@@ -242,7 +242,8 @@ const BuildYourDay: React.FC = () => {
         } else if (step === 3) {
             tripLength = inputText;
             //send all results to gpt and ask them to make a schedule using the results (maybe add more results too like restaurants or popular stuff if user asks for long schedule or doesn't give enough to work with to fill time)
-            aiResponse = await fetchAIResponse(`Build a day trip itinerary for exploring ${inputText}.`); //this will change a bunch....
+            console.log(`Make a schedule for a trip in ${tripLocation} lasting ${tripLength} based on ${jsonResponse}`);
+            aiResponse = await fetchAIResponse(`Make a schedule for a trip in ${tripLocation} lasting ${tripLength} based on ${jsonResponse}`); //this will change a bunch....
             setStep(4);
         }
 
