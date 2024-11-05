@@ -13,6 +13,7 @@ const WelcomeScreen = () => {
   const [filteredCities, setFilteredCities] = useState([]);
   const [location, setLocation] = useState(null);
 
+
   useEffect(() => {
     // Test Foursquare API
     async function foursquareTest() {
