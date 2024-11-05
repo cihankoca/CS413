@@ -170,16 +170,16 @@ const WelcomeScreen = () => {
 
 
     const userAddress = "1600 Amphitheatre Parkway, Mountain View, CA"; // This can come from a user input (can be imperfect...havent tested thoroughly though)
-   // getCoordinates(userAddress)
-        //.then(coords => console.log(coords))
-        //.catch(error => console.error(error));
+    getCoordinates(userAddress)
+        .then(coords => console.log(coords))
+        .catch(error => console.error(error));
 
   },[]);
 
 
   useEffect(() => {
 
-    //openAITest();
+    openAITest();
 
 
   },[]);
