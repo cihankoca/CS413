@@ -15,7 +15,7 @@ import 'react-native-reanimated';
 // Import your screens here
 import WelcomeScreen from '@/app/index';
 import BuildYourDay from '@/app/BuildYourDay';
-import ExploreScreen from '@/app/explore';
+import SavedItinerarires from '@/app/SavedItinerarires';
 import CityDescription from '@/app/CityDescription';
 import ActivityChoice from '@/app/ActivityChoice';
 import Results from '@/app/Results'
@@ -95,8 +95,8 @@ export default function RootLayout() {
 
         {/* Account Tab */}
         <Tab.Screen
-          name="explore"
-          component={ExploreScreen}
+          name="SavedItinerarires"
+          component={SavedItinerarires}
           options={{
             title: 'Account',
             tabBarIcon: ({ color, focused }) => (

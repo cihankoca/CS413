@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator, Image, TouchableOpacity } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useRoute } from '@react-navigation/native';
+import SaveIcon from '../assets/images/save.png';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -93,6 +95,24 @@ const ResultsPage = () => {
         fetchActivityLocations();
     }, [selectedActivities, city]);
 
+    // Save location to AsyncStorage
+    const saveLocation = async (location) => {
+        try {
+            // Get saved locations from AsyncStorage
+            const savedLocations = await AsyncStorage.getItem('savedLocations');
+            let currentLocations = savedLocations ? JSON.parse(savedLocations) : [];
+
+            // Add the new location
+            currentLocations.push(location);
+
+            // Save the updated locations back to AsyncStorage
+            await AsyncStorage.setItem('savedLocations', JSON.stringify(currentLocations));
+            console.log('Location saved successfully!');
+        } catch (error) {
+            console.error('Failed to save the location:', error);
+        }
+    };
+
     return (
         <View style={styles.container}>
             {loading ? (
@@ -136,6 +156,9 @@ const ResultsPage = () => {
                                                 <View key={index} style={styles.activityCard}>
                                                     <Text style={styles.activityLabel}>{location.label}</Text>
                                                     <Text style={styles.descriptionText}>{location.description}</Text>
+                                                    <TouchableOpacity onPress={() => saveLocation(location)}>
+                                                        <Image source={SaveIcon} style={{ width: 20, height: 20, marginTop: 5 }} />
+                                                    </TouchableOpacity>
                                                 </View>
                                             ))
                                         ) : (
@@ -182,7 +205,7 @@ const styles = StyleSheet.create({
     },
     activityCard: {
         marginRight: 15,
-        backgroundColor: '#f2f2f2',
+        backgroundColor: '#a4c2e0',
         borderRadius: 10,
         width: width * 0.7,
         overflow: 'hidden',
@@ -207,3 +230,5 @@ const styles = StyleSheet.create({
 });
 
 export default ResultsPage;
+
+
