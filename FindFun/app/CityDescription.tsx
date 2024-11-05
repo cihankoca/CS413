@@ -6,15 +6,12 @@ import { StackNavigationProp } from '@react-navigation/stack';
 
 // Define the types for the navigation route params
 type RootStackParamList = {
-  CityScreen: { city: string };
-  ActivityChoice: undefined; // ActivityChoice expects no parameters
+  CityScreen: { city: string, latitude: number, longitude: number };
+  ActivityChoice: { city: string, latitude: number, longitude: number }; // Pass city and coordinates to ActivityChoice
 };
 
 // Define navigation type
-type CityScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'CityScreen'
->;
+type CityScreenNavigationProp = StackNavigationProp<RootStackParamList, 'CityScreen'>;
 
 type CityScreenRouteProp = RouteProp<RootStackParamList, 'CityScreen'>;
 
@@ -23,7 +20,7 @@ const { height: screenHeight } = Dimensions.get('window');
 const CityScreen = () => {
   const navigation = useNavigation<CityScreenNavigationProp>();
   const route = useRoute<CityScreenRouteProp>();
-  const { city } = route.params;
+  const { city, latitude, longitude } = route.params; // Pulling city, latitude, and longitude
 
   // City descriptions
   const cityDescriptions: { [key: string]: string } = {
@@ -34,7 +31,6 @@ const CityScreen = () => {
   };
 
   const cityDescription = cityDescriptions[city] || 'A wonderful place to visit!';
-
 
   // Animation for pull-up tab with initial value set to 0 (bottom)
   const animation = useRef(new Animated.Value(0)).current;
@@ -104,11 +100,10 @@ const CityScreen = () => {
         {/* Activity Choice Button */}
         <TouchableOpacity
           style={styles.navButton}
-           onPress={() => navigation.push('ActivityChoice', { city })} // Pass the city to ActivityChoice
+          onPress={() => navigation.push('ActivityChoice', { city, latitude, longitude })} // Pass city, latitude, and longitude to ActivityChoice
         >
           <FontAwesome name="male" size={28} color="#fff" />
         </TouchableOpacity>
-
       </View>
 
       {/* Pull-up tab for description positioned directly below the navigation bar */}
