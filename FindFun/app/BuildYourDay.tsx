@@ -5,9 +5,35 @@ const buildPageBackground = require('../assets/images/buildpage.png');
 
 const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 
+const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY;
+
+interface Place {
+    name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    hours: string | null;
+    website: string | null;
+    rating: number | null;
+  }
+  function extractPlaces(data: any): Place[] {
+    return data.results.map((place: any) => ({
+      name: place.name,
+      address: place.location.formatted_address || place.location.address || "Address not available",
+      latitude: place.geocodes.main.latitude,
+      longitude: place.geocodes.main.longitude,
+      hours: place.hours ? place.hours.display : null,
+      website: place.website || null,
+      rating: place.rating || null
+    }));
+  }
+
+
+
+
 const BuildYourDay: React.FC = () => {
     const [step, setStep] = useState<number>(1);
-    const [chat, setChat] = useState([{ text: "Where are you going?", fromAI: true }]);
+    const [chat, setChat] = useState([{ text: "Where are you going?", fromAI: true }]); //this shouldnt be like this. I need a location Foursquare can use...
     const [inputText, setInputText] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(false); // Loading state for API requests
     const scrollViewRef = useRef<ScrollView>(null);
@@ -64,13 +90,32 @@ const BuildYourDay: React.FC = () => {
 
         let aiResponse = '';
 
+
+        
+        let tripLocation: string = '';
+        let tripGuidelines: string = '';
+        let tripLength: string = '';
+        
+        let jsonResponse: any;
+        let placesList: any;
+
+
+
         if (step === 1) {
+            console.log(inputText); //use inputText to find a latitude and longitude using geocoding
+            tripLocation = inputText;
+
             aiResponse = 'What type of places do you want to explore today?';
-            setStep(2);
+            setStep(2); 
         } else if (step === 2) {
+            //do a foursquare request using their activities and chosen location...
+            tripGuidelines = inputText;
+
             aiResponse = `Great! You chose: ${inputText}. How long do you have to explore?`;
             setStep(3);
         } else if (step === 3) {
+            tripLength = inputText;
+
             aiResponse = await fetchAIResponse(`Build a day trip itinerary for exploring ${inputText}.`);
             setStep(4);
         }
