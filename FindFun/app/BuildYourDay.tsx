@@ -7,6 +7,19 @@ const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 const Geocode_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEOENCODING_API_KEY; 
 const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY;
 
+
+
+let tripLocation: string;
+let tripGuidelines: string;
+let tripLength: string;
+
+let tripLat: any;
+let tripLong: any;
+
+let jsonResponse: any;
+let placesList: any;
+
+
 interface Place { //maybe unnecessary...I just need a good way to give all json results to gpt in an organized way
     name: string;
     address: string;
@@ -151,7 +164,7 @@ const BuildYourDay: React.FC = () => {
                         { role: 'system', content: 'You are a helpful assistant.' },  // System message to set the context
                         { role: 'user', content: input }  // User input
                     ],
-                    max_tokens: 500, //max tokens for test
+                    max_tokens: 3000, //max tokens for test
                 }),
             });
 
@@ -172,6 +185,8 @@ const BuildYourDay: React.FC = () => {
         }
     };
 
+    
+
 
 
     const sendMessage = async () => {
@@ -186,21 +201,12 @@ const BuildYourDay: React.FC = () => {
 
 
         
-        let tripLocation: string = "";
-        let tripGuidelines: string = "";
-        let tripLength: string = "";
-
-        let tripLat: any;
-        let tripLong: any;
         
-        let jsonResponse: any;
-        let placesList: any;
-
-
+        
 
         if (step === 1) {
-            tripLocation = `${inputText}`; //is this the issue? I really think it is....
-            console.log(inputText); //use inputText to find a latitude and longitude using geocoding
+            tripLocation = inputText; //is this the issue? I really think it is....
+            console.log(tripLocation); //use inputText to find a latitude and longitude using geocoding
 
             aiResponse = 'What type of places do you want to explore today?';
             setStep(2); 
@@ -242,8 +248,11 @@ const BuildYourDay: React.FC = () => {
         } else if (step === 3) {
             tripLength = inputText;
             //send all results to gpt and ask them to make a schedule using the results (maybe add more results too like restaurants or popular stuff if user asks for long schedule or doesn't give enough to work with to fill time)
-            console.log(`Make a schedule for a trip in ${tripLocation} lasting ${tripLength} based on ${jsonResponse}`);
-            aiResponse = await fetchAIResponse(`Make a schedule for a trip in ${tripLocation} lasting ${tripLength} based on ${jsonResponse}`); //this will change a bunch....
+            const jsonString = JSON.stringify(jsonResponse, null, 2);
+            console.log(tripLocation);
+            console.log(jsonResponse);
+            console.log(`Make a schedule for a trip in ${tripLocation} lasting ${tripLength} based on ${jsonString}`);
+            aiResponse = await fetchAIResponse(`Make a schedule for a trip in ${tripLocation} lasting ${tripLength} based on ${jsonString}`); //this will change a bunch....
             setStep(4);
         }
 
