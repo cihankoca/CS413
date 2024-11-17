@@ -40,6 +40,20 @@ export const getDBConnection = () => {
 
 export async function initDatabase() {
   console.log('Initializing database');
+
+  // === DELETE DATABASE CODE (comment out when not needed) ===
+  //try {
+  //  const dbPath = `${FileSystem.documentDirectory}SQLite/${DATABASE_NAME}`;
+  //  const { exists } = await FileSystem.getInfoAsync(dbPath);
+  //  if (exists) {
+  //    await FileSystem.deleteAsync(dbPath);
+  //    console.log('Existing database deleted');
+  //  }
+  //} catch (error) {
+  //  console.error('Error deleting database:', error);
+  //}
+  // === END DELETE DATABASE CODE ===
+
   const db = getDBConnection();
 
   // Ensure the SQLite directory exists with proper permissions
@@ -92,7 +106,8 @@ export async function initDatabase() {
         timezone TEXT,
         venue_reality_bucket TEXT,
         verified BOOLEAN,
-        website TEXT
+        website TEXT,
+        created_at INTEGER DEFAULT (strftime('%s', 'now'))
       );
 
       -- Create itinerary_events table
@@ -257,6 +272,54 @@ export async function initDatabase() {
   }
 
   return db;
+}
+
+export async function cleanupOldEvents(db: SQLite.SQLiteDatabase) {
+  try {
+    console.log('Cleaning up events older than 24 hours...');
+    const twentyFourHoursAgo = Math.floor(Date.now() / 1000) - (24 * 60 * 60);
+
+    // Begin transaction
+    await db.withTransactionAsync(async () => {
+      // Get IDs of old events first
+      const oldEvents = await db.getAllAsync(
+        'SELECT id FROM events WHERE created_at < ?',
+        [twentyFourHoursAgo]
+      );
+
+      if (oldEvents.length === 0) {
+        console.log('No old events to clean up');
+        return;
+      }
+
+      const oldEventIds = oldEvents.map(event => event.id);
+      console.log(`Found ${oldEventIds.length} events to clean up`);
+
+      // Delete from all related tables
+      const tables = [
+        'categories', 'chains', 'geocodes', 'hours', 'locations',
+        'photos', 'social_media', 'stats', 'tastes', 'tips',
+        'features', 'itinerary_events'
+      ];
+
+      for (const table of tables) {
+        await db.runAsync(
+          `DELETE FROM ${table} WHERE event_id IN (${oldEventIds.join(',')})`,
+        );
+      }
+
+      // Finally delete the events
+      const result = await db.runAsync(
+        'DELETE FROM events WHERE created_at < ?',
+        [twentyFourHoursAgo]
+      );
+
+      console.log(`Cleaned up ${result.changes} old events`);
+    });
+  } catch (error) {
+    console.error('Error cleaning up old events:', error);
+    throw error;
+  }
 }
 
 // Itinerary functions
@@ -740,6 +803,10 @@ export async function fetchEvents({
   const db = getDBConnection();
 
   try {
+    cleanupOldEvents(db).catch(error => {
+      console.error('Error during automatic cleanup:', error);
+    });
+
     console.log('Attempting to fetch events...');
     console.log(`Coordinates: ${latitude}, ${longitude}`);
     console.log(`Category ID: ${categoryId || 'none'}, Radius: ${radius}m`);
