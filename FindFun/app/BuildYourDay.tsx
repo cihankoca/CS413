@@ -206,7 +206,7 @@ const BuildYourDay: React.FC = () => {
 
 
         if (step === 1) {
-            tripLocation = inputText; //is this the issue? I really think it is....
+            tripLocation = inputText; 
             console.log(tripLocation); //use inputText to find a latitude and longitude using geocoding
 
             aiResponse = 'What type of places do you want to explore today?';
@@ -214,9 +214,8 @@ const BuildYourDay: React.FC = () => {
         } else if (step === 2) {
             //do a foursquare request using their activities and chosen location...
             tripGuidelines = `${inputText}`; //this works as well
-            let userAddress = "1600 Amphitheatre Parkway, Mountain View, CA"; // This can come from a user input (can be imperfect...havent tested thoroughly though)
-            userAddress = "Boston"; //this works too...
-            await getCoordinates(userAddress)  //can't get it to work with other than the example string(s)
+          
+            await getCoordinates(tripLocation) 
                 .then(coords => {
                     tripLat = coords.latitude;
                     tripLong = coords.longitude;
@@ -235,7 +234,6 @@ const BuildYourDay: React.FC = () => {
 
 
             jsonResponse = await placesSearch(search); //saving the json response from a foursquare search
-            //app gets stuck somewhere around here....the Places search is complete and outputted, so maybe the issue is extract?...fixed, returning was brokey
             placesList = extractPlaceInfo(jsonResponse); //taking the important bits out to send to gpt
             console.log("\n THE JSON RESPONSE IS: \n");
             console.log(jsonResponse);
