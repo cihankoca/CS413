@@ -17,6 +17,8 @@ let tripLat: any;
 let tripLong: any;
 
 let jsonResponse: any;
+let jsonResponseDefault: any;
+
 let placesList: any;
 
 
@@ -157,7 +159,7 @@ const BuildYourDay: React.FC = () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    model: 'gpt-3.5-turbo',
+                    model: 'gpt-4o-mini',
                     messages: [
                         {
                             role: 'system',
@@ -165,7 +167,7 @@ const BuildYourDay: React.FC = () => {
                         },
                         { role: 'user', content: input }
                     ],
-                    max_tokens: 3000,
+                    max_tokens: 10000,   
                 }),
             });
 
@@ -226,17 +228,32 @@ const BuildYourDay: React.FC = () => {
 
             let search: SearchParams = {};
             search.ll = `${tripLat},${tripLong}`; //using geocoded lat/long
-            search.radius = 100000; //max radius for testing
+            search.radius = 10000; //max radius for testing is 100,000....I used 10 km
             search.query = tripGuidelines; //this might suck (not work at all)...if so we need a way for user to clearly choose foursquare categories
-            search.limit = 5; //limit of 5 for testing
+            search.limit = 10; //limit of 10 for testing
             search.exclude_all_chains = true;
             search.fields = "name,location,description,website,hours,rating,tips";
 
+            //defaultSearch should give the 20 best entertainment, landmarks, food
+            let defaultSearch: SearchParams = {};  //intended to be a general search to help the AI if the user gives suck query
+            defaultSearch.ll = `${tripLat},${tripLong}`; 
+            defaultSearch.radius = 10000; //10km as a safety
+            defaultSearch.limit = 10; //limit of 10 for testing
+            defaultSearch.exclude_all_chains = true;
+            defaultSearch.categories = "10000,13000,16000"; // arts/entertainment, landmarks, food
+            defaultSearch.fields = "name,location,description,website,hours,rating,tips";
+            defaultSearch.sort = "RATING";
 
             jsonResponse = await placesSearch(search); //saving the json response from a foursquare search
-            placesList = extractPlaceInfo(jsonResponse); //taking the important bits out to send to gpt
+            //placesList = extractPlaceInfo(jsonResponse); //taking the important bits out to send to gpt...it was unused
             console.log("\n THE JSON RESPONSE IS: \n");
             console.log(jsonResponse);
+
+            jsonResponseDefault = await placesSearch(defaultSearch); 
+            //placesList = extractPlaceInfo(jsonResponse); //taking the important bits out to send to gpt...it was unused
+            console.log("\n THE DEFAULT RESPONSE IS: \n");
+            console.log(jsonResponseDefault);
+
             //console.log("\n THE PLACES LIST IS: \n");    //basically just trying to limit tokens given to gpt, but it hasnt mattered much so far...i jsut want to gmake sure gpt understands what attributes belong to which place
             //console.log(placesList);
 
@@ -246,12 +263,14 @@ const BuildYourDay: React.FC = () => {
             setStep(3);
         } else if (step === 3) {
             tripLength = inputText;
+            const now = new Date(); //the current time
             //send all results to gpt and ask them to make a schedule using the results (maybe add more results too like restaurants or popular stuff if user asks for long schedule or doesn't give enough to work with to fill time)
             const jsonString = JSON.stringify(jsonResponse, null, 2);
+            const jsonStringDefault = JSON.stringify(jsonResponseDefault, null, 2);
             console.log(tripLocation);
             console.log(jsonResponse);
-            console.log(`Make a schedule for a trip in ${tripLocation} lasting ${tripLength} based on ${jsonString}`);
-            aiResponse = await fetchAIResponse(`Make a schedule for a trip in ${tripLocation} lasting ${tripLength} based on ${jsonString}`); //this will change a bunch....
+            console.log(`\n\n\n\n Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. The schedule should make sense (multiple of the same type of location in a day is strange). The current time is ${now}, so consider the time and distance between locations when choosing the locations. Priorotize, but do not exclusively choose from these locations: {jsonString} . Use the following locations as backup and supplemental: {jsonStringDefault}\n\n`);
+            aiResponse = await fetchAIResponse(`Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. The schedule should make sense (multiple of the same type of location in a day is strange). The current time is ${now}, so consider the time and distance between locations when choosing the locations. Priorotize, but do not exclusively choose from these locations: ${jsonString} . Use the following locations as backup and supplemental: ${jsonStringDefault}`); //this will change a bunch....
             setStep(4);
         }
 
