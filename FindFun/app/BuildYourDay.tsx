@@ -7,7 +7,7 @@ const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 const Geocode_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEOENCODING_API_KEY;
 const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY;
 
-
+let lastResponse: string;
 
 let tripLocation: string;
 let tripGuidelines: string;
@@ -269,9 +269,23 @@ const BuildYourDay: React.FC = () => {
             const jsonStringDefault = JSON.stringify(jsonResponseDefault, null, 2);
             console.log(tripLocation);
             console.log(jsonResponse);
-            console.log(`\n\n\n\n Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. The schedule should make sense (multiple of the same type of location in a day is strange). The current time is ${now}, so consider the time and distance between locations when choosing the locations. Priorotize, but do not exclusively choose from these locations: {jsonString} . Use the following locations as backup and supplemental: {jsonStringDefault}\n\n`);
-            aiResponse = await fetchAIResponse(`Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. The schedule should make sense (multiple of the same type of location in a day is strange). The current time is ${now}, so consider the time and distance between locations when choosing the locations. Priorotize, but do not exclusively choose from these locations: ${jsonString} . Use the following locations as backup and supplemental: ${jsonStringDefault}`); //this will change a bunch....
+            console.log(`\n\n\n\n Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. The schedule should make sense with food at appropriate times (multiple of the same type of location in a day is strange - there should not be two parks, or two museums). The current time is ${now}, so consider the time and distance between locations when choosing the locations. Priorotize, but do not exclusively choose from these locations: {jsonString} . Use the following locations as backup and supplemental: {jsonStringDefault}\n\n`);
+            aiResponse = await fetchAIResponse(`Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. The schedule should make sense food at appropriate times (multiple of the same type of location in a day is strange - there should not be two parks, or two museums). The current time is ${now}, so consider the time and distance between locations when choosing the locations. Priorotize, but do not exclusively choose from these locations: ${jsonString} . Use the following locations as backup and supplemental: ${jsonStringDefault}`); //this will change a bunch....
+            lastResponse = aiResponse;
             setStep(4);
+        } else if (step === 4) {
+            const userFeedback = inputText;  //the user feedback
+            const now = new Date(); //the current time
+            const jsonString = JSON.stringify(jsonResponse, null, 2); //probably make global or outer scope...would only reduce need for stingify over again
+            const jsonStringDefault = JSON.stringify(jsonResponseDefault, null, 2); //probably make global or outer scope
+            
+            
+            
+            aiResponse = await fetchAIResponse(`The user would like you to change the schedule to fit these criteria: ${userFeedback}. Your last schedule was ${lastResponse} \n Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. The schedule should make sense (multiple of the same type of location in a day is strange - there should not be two parks, or two museums). The current time is ${now}, so consider the time and distance between locations when choosing the locations. Priorotize, but do not exclusively choose from these locations: ${jsonString} . Use the following locations as backup and supplemental: ${jsonStringDefault}`);
+            console.log(`The user would like you to change the schedule to fit these criteria: ${userFeedback}. Your last schedule was ${lastResponse} \n Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. The schedule should make sense (multiple of the same type of location in a day is strange - there should not be two parks, or two museums). The current time is ${now}, so consider the time and distance between locations when choosing the locations. Priorotize, but do not exclusively choose from these locations: ${jsonString} . Use the following locations as backup and supplemental: ${jsonStringDefault}`);
+            lastResponse = aiResponse; //sends the last schedule with the feedback and same directions
+            //unfortunately, API request seem to be "stateless" so they don't remember conversation. (you have to resend the earlier conversations) This is a yucky method of doing this for now
+        
         }
 
         setChat([
