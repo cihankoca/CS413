@@ -42,14 +42,15 @@ const ResultsPage = () => {
                         });
                         const detailsData = await detailsResponse.json();
 
-                        const description = detailsData.description || 'No description available.';
-
                         return {
                             latitude: place.geocodes.main.latitude,
                             longitude: place.geocodes.main.longitude,
                             label: place.name,
                             category: activity,
-                            description,
+                            description: detailsData.description || 'No description available.',
+                            address: detailsData.location?.formatted_address || 'Address not available',
+                            categories: detailsData.categories?.map(cat => cat.name) || [],
+                            hours: detailsData.closed_bucket || 'Hours not available',
                         };
                     }));
 
@@ -106,7 +107,22 @@ const ResultsPage = () => {
                                             filteredLocations.map((location, index) => (
                                                 <View key={index} style={styles.activityCard}>
                                                     <Text style={styles.activityLabel}>{location.label}</Text>
-                                                    <Text style={styles.descriptionText}>{location.description}</Text>
+                                                    <View style={styles.categoryTags}>
+                                                        {location.categories.map((category, idx) => (
+                                                            <Text key={idx} style={styles.categoryTag}>
+                                                                {category}
+                                                            </Text>
+                                                        ))}
+                                                    </View>
+                                                    <Text style={styles.addressText}>{location.address}</Text>
+                                                    <Text style={styles.hoursText}>
+                                                        Status: {location.hours.replace('Likely', ' Likely ')}
+                                                    </Text>
+                                                    {location.description !== 'No description available.' && (
+                                                        <Text style={styles.descriptionText} numberOfLines={3}>
+                                                            {location.description}
+                                                        </Text>
+                                                    )}
                                                 </View>
                                             ))
                                         ) : (
@@ -153,27 +169,58 @@ const styles = StyleSheet.create({
     },
     activityCard: {
         marginRight: 15,
-        backgroundColor: '#f2f2f2',
-        borderRadius: 10,
-        width: width * 0.7,
+        backgroundColor: '#ffffff',
+        borderRadius: 12,
+        width: width * 0.8,
         overflow: 'hidden',
         elevation: 3,
-        padding: 10,
+        padding: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
     },
     activityLabel: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: 'bold',
-        color: '#333',
-        marginVertical: 5,
+        color: '#1a1a1a',
+        marginBottom: 8,
     },
     descriptionText: {
         fontSize: 14,
         color: '#666',
+        lineHeight: 20,
     },
     noDataText: {
         fontSize: 16,
         color: '#666',
         marginLeft: 10,
+    },
+    categoryTags: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: 8,
+    },
+    categoryTag: {
+        fontSize: 12,
+        color: '#ffffff',
+        backgroundColor: '#00b894',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        marginRight: 6,
+        marginBottom: 4,
+    },
+    addressText: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 6,
+    },
+    hoursText: {
+        fontSize: 14,
+        color: '#00b894',
+        marginBottom: 8,
+        fontWeight: '500',
     },
 });
 

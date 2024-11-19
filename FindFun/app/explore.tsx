@@ -3,9 +3,9 @@ import { StyleSheet, View, TextInput, TouchableOpacity, ScrollView, Text } from 
 import { fetchEvents, initDatabase, getDBConnection } from '@/utils/database';
 
 export default function TestScreen() {
-  const [latitude, setLatitude] = useState('');
-  const [longitude, setLongitude] = useState('');
-  const [categoryId, setCategoryId] = useState('');
+  const [latitude, setLatitude] = useState('42.361145');
+  const [longitude, setLongitude] = useState('-71.057083');
+  const [categoryId, setCategoryId] = useState('13000');
   const [radius, setRadius] = useState('5000');
   const [results, setResults] = useState<any[]>([]);
   const [source, setSource] = useState<string>('');

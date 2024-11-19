@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, Animated, PanResponder, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, Animated, PanResponder, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+const UNSPLASH_ACCESS_KEY = process.env.EXPO_PUBLIC_UNSPLASH_ACCESS_KEY;
 
 // Define the types for the navigation route params
 type RootStackParamList = {
@@ -22,6 +23,28 @@ const CityScreen = () => {
   const navigation = useNavigation<CityScreenNavigationProp>();
   const route = useRoute<CityScreenRouteProp>();
   const { city, latitude, longitude } = route.params; // Pulling city, latitude, and longitude
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { // Dynamically fetch city image from unsplash api
+    const fetchCityImage = async () => {
+      try {
+        const response = await fetch(
+          `https://api.unsplash.com/search/photos?query=${city} city&orientation=portrait&client_id=${UNSPLASH_ACCESS_KEY}`
+        );
+        const data = await response.json();
+        if (data.results && data.results.length > 0) {
+          setImageUrl(data.results[0].urls.regular);
+        }
+      } catch (error) {
+        console.error('Error fetching image:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCityImage();
+  }, [city]);
 
   const [cityDescription, setCityDescription] = useState('Loading description...');
 
@@ -99,73 +122,81 @@ const CityScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Fullscreen image with city name overlay */}
-      <ImageBackground
-        source={require('../assets/images/description.webp')}
-        style={styles.imageContainer}
-        resizeMode="cover"
-      >
-        <Animated.View
-          style={[
-            styles.overlay,
-            {
-              transform: [
-                {
-                  translateY: animation.interpolate({
-                    inputRange: [0, screenHeight * 0.6],
-                    outputRange: [0, -150], // Move up as the tab moves up
-                    extrapolate: 'clamp',
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Text style={styles.cityTitle}>{city}</Text>
-        </Animated.View>
-      </ImageBackground>
-
-      {/* Navigation bar at the bottom */}
-      <View style={styles.navBar}>
-        {/* Back Button */}
-        <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back" size={28} color="#fff" />
-        </TouchableOpacity>
-
-        {/* Activity Choice Button */}
-        <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => navigation.push('ActivityChoice', { city, latitude, longitude })} // Pass city, latitude, and longitude to ActivityChoice
-        >
-          <FontAwesome name="male" size={28} color="#fff" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Pull-up tab for description positioned directly below the navigation bar */}
-      <Animated.View
-        {...panResponder.panHandlers}
-        style={[
-          styles.descriptionContainer,
-          {
-            height: animation.interpolate({
-              inputRange: [0, screenHeight * 0.6],
-              outputRange: [140, screenHeight * 0.6],
-              extrapolate: 'clamp',
-            }),
-          },
-        ]}
-      >
-        <View style={styles.pullTab}>
-          <View style={styles.pullIndicator} />
-          <Text style={styles.pullTabText}>Description of {city}</Text>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0000ff" />
         </View>
-        <ScrollView contentContainerStyle={styles.descriptionContent}>
-          <Text style={styles.descriptionText}>{cityDescription}</Text>
-        </ScrollView>
-      </Animated.View>
+      ) : (
+        <>
+          {/* Fullscreen image with city name overlay */}
+          <ImageBackground
+            source={imageUrl ? { uri: imageUrl } : require('../assets/images/description.webp')}
+            style={styles.imageContainer}
+            resizeMode="cover"
+          >
+            <Animated.View
+              style={[
+                styles.overlay,
+                {
+                  transform: [
+                    {
+                      translateY: animation.interpolate({
+                        inputRange: [0, screenHeight * 0.6],
+                        outputRange: [0, -150],
+                        extrapolate: 'clamp',
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.cityTitle}>{city}</Text>
+            </Animated.View>
+          </ImageBackground>
+  
+          {/* Navigation bar at the bottom */}
+          <View style={styles.navBar}>
+            {/* Back Button */}
+            <TouchableOpacity
+              style={styles.navButton}
+              onPress={() => navigation.goBack()}
+            >
+              <MaterialIcons name="arrow-back" size={28} color="#fff" />
+            </TouchableOpacity>
+  
+            {/* Activity Choice Button */}
+            <TouchableOpacity
+              style={styles.navButton}
+              onPress={() => navigation.push('ActivityChoice', { city, latitude, longitude })}
+            >
+              <FontAwesome name="male" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+  
+          {/* Pull-up tab for description positioned directly below the navigation bar */}
+          <Animated.View
+            {...panResponder.panHandlers}
+            style={[
+              styles.descriptionContainer,
+              {
+                height: animation.interpolate({
+                  inputRange: [0, screenHeight * 0.6],
+                  outputRange: [140, screenHeight * 0.6],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ]}
+          >
+            <View style={styles.pullTab}>
+              <View style={styles.pullIndicator} />
+              <Text style={styles.pullTabText}>Description of {city}</Text>
+            </View>
+            <ScrollView contentContainerStyle={styles.descriptionContent}>
+              <Text style={styles.descriptionText}>{cityDescription}</Text>
+            </ScrollView>
+          </Animated.View>
+        </>
+      )}
     </View>
   );
 };
@@ -262,6 +293,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     color: '#333',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
   },
 });
 
