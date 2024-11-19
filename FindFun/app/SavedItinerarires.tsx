@@ -1,81 +1,110 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { useSavedLocationsListener, updateSavedLocations } from './SavedLocationsListener';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeleteIcon from '../assets/images/delete.png';
 
 const SavedItineraries = () => {
-    const [savedLocations, setSavedLocations] = useState([]);
+    const { savedLocations } = useSavedLocationsListener();
 
-    useEffect(() => {
-        const fetchSavedLocations = async () => {
-            try {
-                const locations = await AsyncStorage.getItem('savedLocations');
-                if (locations) {
-                    setSavedLocations(JSON.parse(locations));
-                }
-            } catch (error) {
-                console.error('Failed to fetch saved locations:', error);
-            }
-        };
+    // Mekanları şehirlerine göre gruplandırıyoruz
+    const groupedLocations = savedLocations.reduce((acc, location) => {
+        if (!location.city) {
+            location.city = "Unknown"; // Eğer şehir bilgisi yoksa "Unknown" olarak ayarla
+        }
+        if (!acc[location.city]) {
+            acc[location.city] = [];
+        }
+        acc[location.city].push(location);
+        return acc;
+    }, {});
 
-        fetchSavedLocations();
-    }, []);
-
-    const handleDeleteLocation = async (index) => {
+    const handleDeleteLocation = async (locationToDelete) => {
         try {
-            const updatedLocations = savedLocations.filter((_, i) => i !== index);
-            setSavedLocations(updatedLocations);
+            // Belirli bir lokasyonu tüm kaydedilen lokasyonlardan kaldırıyoruz
+            const updatedLocations = savedLocations.filter(
+                (loc) => !(loc.city === locationToDelete.city && loc.label === locationToDelete.label)
+            );
+
+            // Yeni güncellenmiş listeyi kaydet
             await AsyncStorage.setItem('savedLocations', JSON.stringify(updatedLocations));
+            await updateSavedLocations(updatedLocations);
         } catch (error) {
             console.error('Failed to delete location:', error);
         }
     };
 
     return (
-        <ScrollView style={styles.container}>
-            <Text style={styles.title}>SAVED ITINERARIES</Text>
-            {savedLocations.length > 0 ? (
-                savedLocations.map((location, index) => (
-                    <View key={index} style={styles.locationCard}>
-                        <View style={styles.locationInfo}>
-                            <Text style={styles.locationLabel}>{location.label}</Text>
-                            <Text style={styles.locationDescription}>{location.description || 'No description available.'}</Text>
+        <View style={styles.container}>
+            {/* Başlık kısmı */}
+            <View style={styles.headerContainer}>
+                <Text style={styles.title}>SAVED ITINERARIES</Text>
+            </View>
+
+            <ScrollView style={styles.scrollContainer}>
+                {Object.keys(groupedLocations).length > 0 ? (
+                    Object.keys(groupedLocations).map((city, cityIndex) => (
+                        <View key={cityIndex}>
+                            <Text style={styles.cityTitle}>{city.toUpperCase()}</Text>
+                            {groupedLocations[city].map((location, index) => (
+                                <View key={index} style={styles.locationCard}>
+                                    <View style={styles.locationInfo}>
+                                        <Text style={styles.locationLabel}>{location.label}</Text>
+                                        <Text style={styles.locationDescription}>{location.description || 'No description available.'}</Text>
+                                    </View>
+                                    <TouchableOpacity onPress={() => handleDeleteLocation(location)}>
+                                        <Image source={DeleteIcon} style={styles.deleteIcon} />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
                         </View>
-                        <TouchableOpacity onPress={() => handleDeleteLocation(index)}>
-                            <Image source={DeleteIcon} style={styles.deleteIcon} />
-                        </TouchableOpacity>
-                    </View>
-                ))
-            ) : (
-                <Text style={styles.noDataText}>No saved locations yet.</Text>
-            )}
-        </ScrollView>
+                    ))
+                ) : (
+                    <Text style={styles.noDataText}>No saved locations yet.</Text>
+                )}
+            </ScrollView>
+        </View>
     );
 };
-
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
-        paddingTop: 30,
+        backgroundColor: '#f5f5f5', // Arka plan rengini biraz daha yumuşak bir ton yapalım
+    },
+    headerContainer: {
+        paddingVertical: 40,
+        backgroundColor: '#89CFF0', // Modern bir mavi ton
+        alignItems: 'center',
+        marginBottom: 5,
     },
     title: {
         fontSize: 28,
         fontWeight: 'bold',
-        color: '#000',
-        textAlign: 'center',
-        marginVertical: 20,
-        backgroundColor: '#FCEAEA',
-        padding: 10,
+        color: '#fff', // Beyaz renk, arka planın mavi tonuyla kontrast oluşturur
+
+
+    },
+    cityTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#333',
+        marginVertical: 15,
+        marginLeft: 15,
     },
     locationCard: {
-        backgroundColor: '#E5F7FF',
+        backgroundColor: '#fff',
         padding: 15,
-        borderRadius: 10,
+        borderRadius: 15,
         marginVertical: 10,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
+        marginHorizontal: 15,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 5,
+        elevation: 5,
     },
     locationInfo: {
         flex: 1,
@@ -103,5 +132,3 @@ const styles = StyleSheet.create({
 });
 
 export default SavedItineraries;
-
-

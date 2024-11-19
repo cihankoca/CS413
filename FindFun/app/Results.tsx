@@ -1,28 +1,32 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator, Image, TouchableOpacity } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useRoute } from '@react-navigation/native';
 import SaveIcon from '../assets/images/save.png';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { updateSavedLocations, useSavedLocationsListener } from './SavedLocationsListener';
 
 const { width } = Dimensions.get('window');
 
 const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY;
+const Geocode_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEOENCODING_API_KEY;
 
 const ResultsPage = () => {
     const route = useRoute();
     const { selectedActivities, city, latitude, longitude } = route.params; // Pull the latitude and longitude from route params
 
+    const { savedLocations, isSaved } = useSavedLocationsListener();
+
     const [locations, setLocations] = useState([]);
+    const [cityCoordinates, setCityCoordinates] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchActivityLocations = async () => {
+            setLoading(true);
             try {
                 const activityPromises = selectedActivities.map(async (activity) => {
                     const url = `https://api.foursquare.com/v3/places/search?query=${activity}&limit=5&near=${city}`;
-                    console.log(`Fetching data for activity: ${activity} in city: ${city}`);
-
                     const response = await fetch(url, {
                         headers: {
                             Authorization: FOURSQUARE_API_KEY,
@@ -71,21 +75,50 @@ const ResultsPage = () => {
         fetchActivityLocations();
     }, [selectedActivities, city]);
 
+    // Toggle Save/Unsave Location
+    const handleToggleSave = useCallback(async (location) => {
+        if (isSaved(location)) {
+            await handleDeleteLocation(location);
+        } else {
+            await saveLocation(location);
+        }
+    }, [savedLocations]);
+
     // Save location to AsyncStorage
     const saveLocation = async (location) => {
         try {
             // Get saved locations from AsyncStorage
-            const savedLocations = await AsyncStorage.getItem('savedLocations');
-            let currentLocations = savedLocations ? JSON.parse(savedLocations) : [];
+            const savedLocationsString = await AsyncStorage.getItem('savedLocations');
+            let currentLocations = savedLocationsString ? JSON.parse(savedLocationsString) : [];
 
             // Add the new location
             currentLocations.push(location);
 
             // Save the updated locations back to AsyncStorage
             await AsyncStorage.setItem('savedLocations', JSON.stringify(currentLocations));
+            await updateSavedLocations(currentLocations);
             console.log('Location saved successfully!');
         } catch (error) {
             console.error('Failed to save the location:', error);
+        }
+    };
+
+    // Delete location from AsyncStorage
+    const handleDeleteLocation = async (location) => {
+        try {
+            const savedLocationsString = await AsyncStorage.getItem('savedLocations');
+            if (!savedLocationsString) {
+                throw new Error("No saved locations found.");
+            }
+            const savedLocations = JSON.parse(savedLocationsString);
+            const updatedLocations = savedLocations.filter((item) => item.label !== location.label);
+
+            // Save the updated locations back to AsyncStorage
+            await AsyncStorage.setItem('savedLocations', JSON.stringify(updatedLocations));
+            await updateSavedLocations(updatedLocations);
+            console.log('Location deleted successfully!');
+        } catch (error) {
+            console.error('Failed to delete location:', error);
         }
     };
 
@@ -114,7 +147,6 @@ const ResultsPage = () => {
                         ))}
                     </MapView>
 
-                    {/* Results Section - Lower Half */}
                     <ScrollView style={styles.resultsContainer}>
                         {selectedActivities.map((activity, activityIndex) => {
                             const filteredLocations = locations.filter(loc => loc.category === activity);
@@ -248,5 +280,3 @@ const styles = StyleSheet.create({
 });
 
 export default ResultsPage;
-
-
