@@ -21,7 +21,6 @@ import ActivityChoice from '@/app/ActivityChoice';
 import Results from '@/app/Results'
 
 
-
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 

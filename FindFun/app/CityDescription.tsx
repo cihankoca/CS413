@@ -104,7 +104,7 @@ const CityScreen = () => {
         {/* Activity Choice Button */}
         <TouchableOpacity
           style={styles.navButton}
-           onPress={() => navigation.push('ActivityChoice', { city })} // Pass the city to ActivityChoice
+          onPress={() => navigation.push('ActivityChoice', { city })} // Pass the city to ActivityChoice
         >
           <FontAwesome name="male" size={28} color="#fff" />
         </TouchableOpacity>

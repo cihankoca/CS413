@@ -1,21 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator, Image, TouchableOpacity } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useRoute } from '@react-navigation/native';
 import SaveIcon from '../assets/images/save.png';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { updateSavedLocations, useSavedLocationsListener } from './SavedLocationsListener';
 
 const { width } = Dimensions.get('window');
 
-const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY; // foursquare api in discord
+const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY;
 const Geocode_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEOENCODING_API_KEY;
 
 const ResultsPage = () => {
     const route = useRoute();
     const { selectedActivities, city } = route.params;
 
+    const { savedLocations, isSaved } = useSavedLocationsListener();
+
     const [locations, setLocations] = useState([]);
-    const [cityCoordinates, setCityCoordinates] = useState(null); // To store city coordinates
+    const [cityCoordinates, setCityCoordinates] = useState(null);
     const [loading, setLoading] = useState(true);
 
     // Fetch city coordinates using Google Geocoding API
@@ -39,14 +42,13 @@ const ResultsPage = () => {
     // Fetch data based on selected activities
     useEffect(() => {
         const fetchActivityLocations = async () => {
+            setLoading(true);
             try {
                 // Fetch city coordinates first
                 await fetchCityCoordinates(city);
 
                 const activityPromises = selectedActivities.map(async (activity) => {
                     const url = `https://api.foursquare.com/v3/places/search?query=${activity}&limit=5&near=${city}`;
-                    console.log(`Fetching data for activity: ${activity} in city: ${city}`);
-
                     const response = await fetch(url, {
                         headers: {
                             Authorization: FOURSQUARE_API_KEY,
@@ -54,7 +56,6 @@ const ResultsPage = () => {
                     });
                     const data = await response.json();
 
-                    // Check if data.results exists and is not empty
                     if (!data.results || data.results.length === 0) {
                         console.warn(`No results found for activity: ${activity}`);
                         return [];
@@ -69,14 +70,13 @@ const ResultsPage = () => {
                         });
                         const detailsData = await detailsResponse.json();
 
-                        const description = detailsData.description || 'No description available.';
-
                         return {
                             latitude: place.geocodes.main.latitude,
                             longitude: place.geocodes.main.longitude,
                             label: place.name,
                             category: activity,
-                            description,
+                            description: detailsData.description || 'No description available.',
+                            city: city, // Şehir bilgisini ekliyoruz
                         };
                     }));
 
@@ -95,21 +95,50 @@ const ResultsPage = () => {
         fetchActivityLocations();
     }, [selectedActivities, city]);
 
+    // Toggle Save/Unsave Location
+    const handleToggleSave = useCallback(async (location) => {
+        if (isSaved(location)) {
+            await handleDeleteLocation(location);
+        } else {
+            await saveLocation(location);
+        }
+    }, [savedLocations]);
+
     // Save location to AsyncStorage
     const saveLocation = async (location) => {
         try {
             // Get saved locations from AsyncStorage
-            const savedLocations = await AsyncStorage.getItem('savedLocations');
-            let currentLocations = savedLocations ? JSON.parse(savedLocations) : [];
+            const savedLocationsString = await AsyncStorage.getItem('savedLocations');
+            let currentLocations = savedLocationsString ? JSON.parse(savedLocationsString) : [];
 
             // Add the new location
             currentLocations.push(location);
 
             // Save the updated locations back to AsyncStorage
             await AsyncStorage.setItem('savedLocations', JSON.stringify(currentLocations));
+            await updateSavedLocations(currentLocations);
             console.log('Location saved successfully!');
         } catch (error) {
             console.error('Failed to save the location:', error);
+        }
+    };
+
+    // Delete location from AsyncStorage
+    const handleDeleteLocation = async (location) => {
+        try {
+            const savedLocationsString = await AsyncStorage.getItem('savedLocations');
+            if (!savedLocationsString) {
+                throw new Error("No saved locations found.");
+            }
+            const savedLocations = JSON.parse(savedLocationsString);
+            const updatedLocations = savedLocations.filter((item) => item.label !== location.label);
+
+            // Save the updated locations back to AsyncStorage
+            await AsyncStorage.setItem('savedLocations', JSON.stringify(updatedLocations));
+            await updateSavedLocations(updatedLocations);
+            console.log('Location deleted successfully!');
+        } catch (error) {
+            console.error('Failed to delete location:', error);
         }
     };
 
@@ -119,13 +148,12 @@ const ResultsPage = () => {
                 <ActivityIndicator size="large" color="#00b894" style={styles.loader} />
             ) : (
                 <>
-                    {/* Map Section - Top Half */}
                     {cityCoordinates ? (
                         <MapView
                             style={styles.map}
                             initialRegion={{
-                                latitude: cityCoordinates.latitude,  // City Latitude
-                                longitude: cityCoordinates.longitude, // City Longitude
+                                latitude: cityCoordinates.latitude,
+                                longitude: cityCoordinates.longitude,
                                 latitudeDelta: 0.05,
                                 longitudeDelta: 0.05,
                             }}
@@ -142,7 +170,6 @@ const ResultsPage = () => {
                         <Text>Loading map...</Text>
                     )}
 
-                    {/* Results Section - Lower Half */}
                     <ScrollView style={styles.resultsContainer}>
                         {selectedActivities.map((activity, activityIndex) => {
                             const filteredLocations = locations.filter(loc => loc.category === activity);
@@ -156,8 +183,8 @@ const ResultsPage = () => {
                                                 <View key={index} style={styles.activityCard}>
                                                     <Text style={styles.activityLabel}>{location.label}</Text>
                                                     <Text style={styles.descriptionText}>{location.description}</Text>
-                                                    <TouchableOpacity onPress={() => saveLocation(location)}>
-                                                        <Image source={SaveIcon} style={{ width: 20, height: 20, marginTop: 5 }} />
+                                                    <TouchableOpacity onPress={() => handleToggleSave(location)}>
+                                                        <Image source={SaveIcon} style={{ width: 20, height: 20, marginTop: 5, tintColor: isSaved(location) ? 'green' : 'gray' }} />
                                                     </TouchableOpacity>
                                                 </View>
                                             ))
@@ -182,7 +209,7 @@ const styles = StyleSheet.create({
     },
     map: {
         width: '100%',
-        height: '50%', // Top half of the screen
+        height: '50%',
     },
     loader: {
         flex: 1,
@@ -216,7 +243,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
         color: '#333',
-        marginVertical: 5,
     },
     descriptionText: {
         fontSize: 14,
@@ -230,5 +256,3 @@ const styles = StyleSheet.create({
 });
 
 export default ResultsPage;
-
-
