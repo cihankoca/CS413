@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, Animated, Pa
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import AntDesign from '@expo/vector-icons/AntDesign';
 
 const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 const UNSPLASH_ACCESS_KEY = process.env.EXPO_PUBLIC_UNSPLASH_ACCESS_KEY;
@@ -167,9 +168,9 @@ const CityScreen = () => {
             {/* Activity Choice Button */}
             <TouchableOpacity
               style={styles.navButton}
-              onPress={() => navigation.push('ActivityChoice', { city, latitude, longitude })}
+              onPress={() => navigation.navigate('ActivityChoice', { city, latitude, longitude })}
             >
-              <FontAwesome name="male" size={28} color="#fff" />
+              <AntDesign name="arrowright" size={24} color="white" />
             </TouchableOpacity>
           </View>
   
