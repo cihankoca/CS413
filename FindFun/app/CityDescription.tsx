@@ -4,6 +4,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 
+const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 const UNSPLASH_ACCESS_KEY = process.env.EXPO_PUBLIC_UNSPLASH_ACCESS_KEY;
 
 // Define the types for the navigation route params
@@ -14,7 +15,6 @@ type RootStackParamList = {
 
 // Define navigation type
 type CityScreenNavigationProp = StackNavigationProp<RootStackParamList, 'CityScreen'>;
-
 type CityScreenRouteProp = RouteProp<RootStackParamList, 'CityScreen'>;
 
 const { height: screenHeight } = Dimensions.get('window');
@@ -46,15 +46,52 @@ const CityScreen = () => {
     fetchCityImage();
   }, [city]);
 
-  // City descriptions
-  const cityDescriptions: { [key: string]: string } = {
-    'Boston': 'Boston is a city rich in history...',
-    'New York': 'New York City is a global hub...',
-    'Los Angeles': 'Los Angeles, home to Hollywood...',
-    'Chicago': 'Chicago is famed for its bold architecture...',
-  };
+  const [cityDescription, setCityDescription] = useState('Loading description...');
 
-  const cityDescription = cityDescriptions[city] || 'A wonderful place to visit!';
+  useEffect(() => {
+    const fetchCityDescription = async () => {
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${OPENAI_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-3.5-turbo', // or 'gpt-4' if you're using GPT-4
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a helpful assistant that provides detailed descriptions of cities based on their name and geographic coordinates.'
+              },
+              {
+                role: 'user',
+                content: `Provide a brief description (100 words or less, do not include the long./lat. within the description) of the city ${city}, located at latitude ${latitude} and longitude ${longitude}.`
+              }
+            ],
+            max_tokens: 2500,
+          })
+        });
+
+        const data = await response.json();
+        console.log("OpenAI Response:", data);  // Log the entire response to check the structure
+
+        // Check if the response contains the required data before accessing
+        const description = data.choices && data.choices[0] && data.choices[0].message
+          ? data.choices[0].message.content.trim()
+          : 'Description not available.';
+        setCityDescription(description);
+      } catch (error) {
+        console.error('Error fetching city description from OpenAI:', error);
+        setCityDescription('Failed to load description.');
+      }
+    };
+
+    fetchCityDescription();
+  }, [city, latitude, longitude]);
+
+
+
 
   // Animation for pull-up tab with initial value set to 0 (bottom)
   const animation = useRef(new Animated.Value(0)).current;
