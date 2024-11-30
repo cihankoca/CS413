@@ -15,10 +15,11 @@ import 'react-native-reanimated';
 // Import your screens here
 import WelcomeScreen from '@/app/index';
 import BuildYourDay from '@/app/BuildYourDay';
-import SavedItinerarires from '@/app/SavedItinerarires';
+import SavedItineraries from '@/app/SavedItineraries';
 import CityDescription from '@/app/CityDescription';
 import ActivityChoice from '@/app/ActivityChoice';
 import Results from '@/app/Results'
+import Account from '@/app/Account';
 
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -54,9 +55,23 @@ export default function RootLayout() {
         <Stack.Screen name="CityDescription" component={CityDescription} />
         <Stack.Screen name="ActivityChoice" component={ActivityChoice} />
         <Stack.Screen name="Results" component={Results} />
+        <Stack.Screen name="Account" component={Account} />
+
+
       </Stack.Navigator>
     );
   }
+
+
+  function AccountStackNavigator() {
+    return (
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="AccountMain" component={Account} />
+        <Stack.Screen name="SavedItineraries" component={SavedItineraries} />
+      </Stack.Navigator>
+    );
+  }
+
 
   // Define the tab bar layout (formerly layout.tsx)
   function TabNavigator() {
@@ -93,16 +108,21 @@ export default function RootLayout() {
         />
 
         {/* Account Tab */}
+
+        {/* Account Tab */}
         <Tab.Screen
-          name="SavedItinerarires"
-          component={SavedItinerarires}
+          name="Account"
+          component={AccountStackNavigator} // Stack Navigator kullanılıyor
           options={{
             title: 'Account',
             tabBarIcon: ({ color, focused }) => (
-              <MaterialIcons name={focused ? 'account-circle' : 'account-circle'} color={color} size={30} />
+              <MaterialIcons name="account-circle" color={color} size={30} />
             ),
           }}
         />
+
+
+
       </Tab.Navigator>
     );
   }

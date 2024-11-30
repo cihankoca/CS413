@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Image, TouchableOpacity, ImageBackground } from 'react-native';
 import { useSavedLocationsListener, updateSavedLocations } from './SavedLocationsListener';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeleteIcon from '../assets/images/delete.png';
+import BackgroundImage from '../assets/images/buildpage.png';
 
 const SavedItineraries = () => {
     const { savedLocations } = useSavedLocationsListener();
@@ -35,64 +36,75 @@ const SavedItineraries = () => {
     };
 
     return (
-        <View style={styles.container}>
-            {/* Başlık kısmı */}
-            <View style={styles.headerContainer}>
-                <Text style={styles.title}>SAVED ITINERARIES</Text>
-            </View>
+        <ImageBackground source={BackgroundImage} style={styles.backgroundImage}>
+            <View style={styles.overlay} />
+            <View style={styles.container}>
+                {/* Başlık kısmı */}
+                <View style={styles.headerContainer}>
+                    <Text style={styles.title}>Saved Itineraries</Text>
+                </View>
 
-            <ScrollView style={styles.scrollContainer}>
-                {Object.keys(groupedLocations).length > 0 ? (
-                    Object.keys(groupedLocations).map((city, cityIndex) => (
-                        <View key={cityIndex}>
-                            <Text style={styles.cityTitle}>{city.toUpperCase()}</Text>
-                            {groupedLocations[city].map((location, index) => (
-                                <View key={index} style={styles.locationCard}>
-                                    <View style={styles.locationInfo}>
-                                        <Text style={styles.locationLabel}>{location.label}</Text>
-                                        <Text style={styles.locationDescription}>{location.description || 'No description available.'}</Text>
+                <ScrollView style={styles.scrollContainer}>
+                    {Object.keys(groupedLocations).length > 0 ? (
+                        Object.keys(groupedLocations).map((city, cityIndex) => (
+                            <View key={cityIndex}>
+                                <Text style={styles.cityTitle}>{city.toUpperCase()}</Text>
+                                {groupedLocations[city].map((location, index) => (
+                                    <View key={index} style={styles.locationCard}>
+                                        <View style={styles.locationInfo}>
+                                            <Text style={styles.locationLabel}>{location.label}</Text>
+                                            <Text style={styles.locationDescription}>{location.description || 'No description available.'}</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => handleDeleteLocation(location)}>
+                                            <Image source={DeleteIcon} style={styles.deleteIcon} />
+                                        </TouchableOpacity>
                                     </View>
-                                    <TouchableOpacity onPress={() => handleDeleteLocation(location)}>
-                                        <Image source={DeleteIcon} style={styles.deleteIcon} />
-                                    </TouchableOpacity>
-                                </View>
-                            ))}
-                        </View>
-                    ))
-                ) : (
-                    <Text style={styles.noDataText}>No saved locations yet.</Text>
-                )}
-            </ScrollView>
-        </View>
+                                ))}
+                            </View>
+                        ))
+                    ) : (
+                        <Text style={styles.noDataText}>No saved locations yet.</Text>
+                    )}
+                </ScrollView>
+            </View>
+        </ImageBackground>
     );
 };
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5', // Arka plan rengini biraz daha yumuşak bir ton yapalım
+        padding: 20,
+    },
+    backgroundImage: {
+        flex: 1,
+        resizeMode: 'cover',
+    },
+    overlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
     },
     headerContainer: {
-        paddingVertical: 40,
-        backgroundColor: '#89CFF0', // Modern bir mavi ton
+        paddingVertical: 30,
         alignItems: 'center',
-        marginBottom: 5,
+        marginBottom: 20,
     },
     title: {
         fontSize: 28,
         fontWeight: 'bold',
-        color: '#fff', // Beyaz renk, arka planın mavi tonuyla kontrast oluşturur
-
-
+        color: '#fff',
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 2,
     },
     cityTitle: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#333',
+        color: '#fff',
         marginVertical: 15,
         marginLeft: 15,
     },
     locationCard: {
-        backgroundColor: '#fff',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
         padding: 15,
         borderRadius: 15,
         marginVertical: 10,
@@ -121,7 +133,7 @@ const styles = StyleSheet.create({
     },
     noDataText: {
         fontSize: 16,
-        color: '#666',
+        color: '#fff',
         textAlign: 'center',
         marginTop: 20,
     },
