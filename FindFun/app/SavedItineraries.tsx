@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Image, TouchableOpacity, ImageBackground } from 'react-native';
 import { useSavedLocationsListener, updateSavedLocations } from './SavedLocationsListener';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,6 +7,7 @@ import BackgroundImage from '../assets/images/buildpage.png';
 
 const SavedItineraries = () => {
     const { savedLocations } = useSavedLocationsListener();
+    const [expandedCities, setExpandedCities] = useState({});
 
     // Mekanları şehirlerine göre gruplandırıyoruz
     const groupedLocations = savedLocations.reduce((acc, location) => {
@@ -35,6 +36,13 @@ const SavedItineraries = () => {
         }
     };
 
+    const toggleCityExpansion = (city) => {
+        setExpandedCities((prevState) => ({
+            ...prevState,
+            [city]: !prevState[city],
+        }));
+    };
+
     return (
         <ImageBackground source={BackgroundImage} style={styles.backgroundImage}>
             <View style={styles.overlay} />
@@ -48,18 +56,23 @@ const SavedItineraries = () => {
                     {Object.keys(groupedLocations).length > 0 ? (
                         Object.keys(groupedLocations).map((city, cityIndex) => (
                             <View key={cityIndex}>
-                                <Text style={styles.cityTitle}>{city.toUpperCase()}</Text>
-                                {groupedLocations[city].map((location, index) => (
-                                    <View key={index} style={styles.locationCard}>
-                                        <View style={styles.locationInfo}>
-                                            <Text style={styles.locationLabel}>{location.label}</Text>
-                                            <Text style={styles.locationDescription}>{location.description || 'No description available.'}</Text>
+                                <TouchableOpacity onPress={() => toggleCityExpansion(city)} style={styles.cityHeader}>
+                                    <Text style={styles.cityTitle}>{city.toUpperCase()}</Text>
+                                    <Text style={styles.arrow}>{expandedCities[city] ? '▲' : '▼'}</Text>
+                                </TouchableOpacity>
+                                {expandedCities[city] && (
+                                    groupedLocations[city].map((location, index) => (
+                                        <View key={index} style={styles.locationCard}>
+                                            <View style={styles.locationInfo}>
+                                                <Text style={styles.locationLabel}>{location.label}</Text>
+                                                <Text style={styles.locationDescription}>{location.description || 'No description available.'}</Text>
+                                            </View>
+                                            <TouchableOpacity onPress={() => handleDeleteLocation(location)}>
+                                                <Image source={DeleteIcon} style={styles.deleteIcon} />
+                                            </TouchableOpacity>
                                         </View>
-                                        <TouchableOpacity onPress={() => handleDeleteLocation(location)}>
-                                            <Image source={DeleteIcon} style={styles.deleteIcon} />
-                                        </TouchableOpacity>
-                                    </View>
-                                ))}
+                                    ))
+                                )}
                             </View>
                         ))
                     ) : (
@@ -70,6 +83,7 @@ const SavedItineraries = () => {
         </ImageBackground>
     );
 };
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -96,12 +110,24 @@ const styles = StyleSheet.create({
         textShadowOffset: { width: 1, height: 1 },
         textShadowRadius: 2,
     },
+    cityHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 15,
+        paddingHorizontal: 10,
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderRadius: 10,
+        marginVertical: 10,
+    },
     cityTitle: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#fff',
-        marginVertical: 15,
-        marginLeft: 15,
+        color: '#333',
+    },
+    arrow: {
+        fontSize: 18,
+        color: '#333',
     },
     locationCard: {
         backgroundColor: 'rgba(255, 255, 255, 0.9)',
