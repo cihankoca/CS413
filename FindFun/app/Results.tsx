@@ -18,6 +18,8 @@ const ResultsPage = () => {
 
     const { savedLocations, isSaved } = useSavedLocationsListener();
 
+    const { savedLocations, isSaved } = useSavedLocationsListener();
+
     const [locations, setLocations] = useState([]);
     const [cityCoordinates, setCityCoordinates] = useState(null);
     const [loading, setLoading] = useState(true);
