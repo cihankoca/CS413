@@ -1,26 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, Dimensions, ImageBackground, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { useSavedLocationsListener } from './SavedLocationsListener';
 
 const buildPageBackground = require('../assets/images/buildpage.png');
 
 const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 const Geocode_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEOENCODING_API_KEY;
 const FOURSQUARE_API_KEY = process.env.EXPO_PUBLIC_FOURSQUARE_API_KEY;
-
-let lastResponse: string;
-
-let tripLocation: string;
-let tripGuidelines: string;
-let tripLength: string;
-
-let tripLat: any;
-let tripLong: any;
-
-let jsonResponse: any;
-let jsonResponseDefault: any;
-
-let placesList: any;
-
 
 interface Place { //maybe unnecessary...I just need a good way to give all json results to gpt in an organized way
     name: string;
@@ -139,19 +125,59 @@ async function placesSearch(params: SearchParams) {
 
 
 const BuildYourDay: React.FC = () => {
+    const { savedLocations, updateLocations } = useSavedLocationsListener();
     const [step, setStep] = useState<number>(1);
-    const [chat, setChat] = useState([{ text: "Where are you going?", fromAI: true }]); //this shouldnt be like this. I need a location Foursquare can use...
+    const [chat, setChat] = useState([{ text: "Where are you going?", fromAI: true }]);
     const [inputText, setInputText] = useState<string>('');
-    const [loading, setLoading] = useState<boolean>(false); // Loading state for API requests
+    const [loading, setLoading] = useState<boolean>(false);
+    const [tripLocation, setTripLocation] = useState<string>('');
+    const [tripGuidelines, setTripGuidelines] = useState<string>('');
+    const [tripLength, setTripLength] = useState<string>('');
+    const [tripLat, setTripLat] = useState<number | null>(null);
+    const [tripLong, setTripLong] = useState<number | null>(null);
+    const [lastResponse, setLastResponse] = useState<string>('');
+    const [jsonResponse, setJsonResponse] = useState<any>(null);
+    const [jsonResponseDefault, setJsonResponseDefault] = useState<any>(null);
+    const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
     const scrollViewRef = useRef<ScrollView>(null);
 
-    useEffect(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, [chat]);
+    const saveItinerary = async (itineraryContent: string) => {
+        try {
+            const items = itineraryContent
+                .split('\n\n')
+                .map(item => {
+                    const [timeLine, metaLine, description] = item.split('\n');
+                    const [time, locationAndAddress] = timeLine.split(' - ');
+                    const [location, address] = locationAndAddress.split(' - ');
+                    const rating = metaLine.match(/\[RATING: (.*?)\/5\]/)?.[1];
+                    const hours = metaLine.match(/\[HOURS: (.*?)\]/)?.[1];
 
-    const fetchAIResponse = async (input: string) => {
+                    return {
+                        label: location.replace(/\*\*/g, ''),
+                        description: description,
+                        address: address,
+                        rating: rating || '',
+                        hours: hours || '',
+                        time: time,
+                        city: tripLocation
+                    };
+                });
+
+            const currentLocations = savedLocations || [];
+            const updatedLocations = [...currentLocations, ...items];
+            await updateLocations(updatedLocations);
+        } catch (error) {
+            console.error('Failed to save itinerary:', error);
+        }
+    };
+
+    const fetchAIResponse = async (input: string, retryCount = 0): Promise<string> => {
         setLoading(true);
         try {
+            console.log('Fetching AI response for input:', input);
+
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -159,7 +185,7 @@ const BuildYourDay: React.FC = () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    model: 'gpt-4o-mini',
+                    model: 'gpt-3.5-turbo', // Changed to 3.5-turbo which has higher rate limits
                     messages: [
                         {
                             role: 'system',
@@ -167,22 +193,48 @@ const BuildYourDay: React.FC = () => {
                         },
                         { role: 'user', content: input }
                     ],
-                    max_tokens: 10000,   
+                    max_tokens: 2000,
                 }),
             });
 
-            const data = await response.json();
+            console.log('Response status:', response.status);
 
-            // Check if 'choices' exists and has a valid structure
-            if (data && data.choices && data.choices.length > 0 && data.choices[0].message) {
-                return data.choices[0].message.content.trim();  // Return the response message from the AI
+            if (response.status === 429 && retryCount < 3) {
+                // If rate limited, wait and retry
+                const retryAfter = response.headers.get('Retry-After') || '20';
+                const waitTime = parseInt(retryAfter, 10) * 1000;
+                console.log(`Rate limited. Waiting ${waitTime}ms before retry...`);
+
+                await delay(waitTime);
+                return fetchAIResponse(input, retryCount + 1);
+            }
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('AI response data:', data);
+
+            if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+                return data.choices[0].message.content.trim();
             } else {
-                console.error('Unexpected response format from OpenAI:', data);
-                return 'Sorry, something went wrong. Please try again.';
+                throw new Error('Unexpected response format from OpenAI');
             }
         } catch (error) {
-            console.error('Error fetching AI response:', error);
-            return 'Sorry, something went wrong. Please try again.';
+            console.error('Error in fetchAIResponse:', error);
+
+            // Show a more user-friendly error message
+            const errorMessage = error.message.includes('429')
+                ? "We're experiencing high traffic. Please try again in a few moments."
+                : "Sorry, something went wrong. Please try again.";
+
+            setChat(prevChat => [...prevChat, {
+                text: errorMessage,
+                fromAI: true
+            }]);
+
+            return errorMessage;
         } finally {
             setLoading(false);
         }
@@ -195,126 +247,149 @@ const BuildYourDay: React.FC = () => {
     const sendMessage = async () => {
         if (inputText.trim() === '') return;
 
-        setChat([
-            ...chat,
-            { text: inputText, fromAI: false }
-        ]);
+        // Add the user's message to chat immediately
+        setChat(prevChat => [...prevChat, { text: inputText, fromAI: false }]);
 
         let aiResponse = '';
 
+        try {
+            if (step === 1) {
+                // Save the location using setState instead of direct assignment
+                setTripLocation(inputText);
+                aiResponse = 'What type of places do you want to explore today?';
+                setStep(2);
+            } else if (step === 2) {
+                // Save the guidelines
+                setTripGuidelines(inputText);
 
+                try {
+                    // Get coordinates
+                    const coords = await getCoordinates(tripLocation);
+                    setTripLat(coords.latitude);
+                    setTripLong(coords.longitude);
 
+                    let search: SearchParams = {
+                        ll: `${coords.latitude},${coords.longitude}`,
+                        radius: 10000,
+                        query: inputText,
+                        limit: 10,
+                        exclude_all_chains: true,
+                        fields: "name,location,description,website,hours,rating,tips"
+                    };
 
+                    let defaultSearch: SearchParams = {
+                        ll: `${coords.latitude},${coords.longitude}`,
+                        radius: 10000,
+                        limit: 10,
+                        exclude_all_chains: true,
+                        categories: "10000,13000,16000",
+                        fields: "name,location,description,website,hours,rating,tips",
+                        sort: "RATING"
+                    };
 
+                    const searchResponse = await placesSearch(search);
+                    const defaultSearchResponse = await placesSearch(defaultSearch);
 
-        if (step === 1) {
-            tripLocation = inputText; 
-            console.log(tripLocation); //use inputText to find a latitude and longitude using geocoding
+                    setJsonResponse(searchResponse);
+                    setJsonResponseDefault(defaultSearchResponse);
 
-            aiResponse = 'What type of places do you want to explore today?';
-            setStep(2);
-        } else if (step === 2) {
-            //do a foursquare request using their activities and chosen location...
-            tripGuidelines = `${inputText}`; //this works as well
-          
-            await getCoordinates(tripLocation) 
-                .then(coords => {
-                    tripLat = coords.latitude;
-                    tripLong = coords.longitude;
-                    console.log("Latitude:", tripLat, "Longitude:", tripLong);
-                })
-                .catch(error => console.error(error));
+                    aiResponse = `Great! You chose: ${inputText}. How long do you have to explore?`;
+                    setStep(3);
+                } catch (error) {
+                    console.error('Error during step 2:', error);
+                    aiResponse = 'Sorry, there was an error processing your request. Please try again.';
+                }
+            } else if (step === 3) {
+                setTripLength(inputText);
+                const now = new Date();
 
+                try {
+                    const jsonString = JSON.stringify(jsonResponse, null, 2);
+                    const jsonStringDefault = JSON.stringify(jsonResponseDefault, null, 2);
 
-            let search: SearchParams = {};
-            search.ll = `${tripLat},${tripLong}`; //using geocoded lat/long
-            search.radius = 10000; //max radius for testing is 100,000....I used 10 km
-            search.query = tripGuidelines; //this might suck (not work at all)...if so we need a way for user to clearly choose foursquare categories
-            search.limit = 10; //limit of 10 for testing
-            search.exclude_all_chains = true;
-            search.fields = "name,location,description,website,hours,rating,tips";
+                    aiResponse = await fetchAIResponse(
+                        `Make a schedule for a trip in ${tripLocation} lasting ${inputText}. ` +
+                        `The schedule should make sense with food at appropriate times (multiple of the same type of location in a day is strange - ` +
+                        `there should not be two parks, or two museums). The current time is ${now}, so consider the time and distance between locations ` +
+                        `when choosing the locations. Prioritize, but do not exclusively choose from these locations: ${jsonString} . ` +
+                        `Use the following locations as backup and supplemental: ${jsonStringDefault}`
+                    );
 
-            //defaultSearch should give the 20 best entertainment, landmarks, food
-            let defaultSearch: SearchParams = {};  //intended to be a general search to help the AI if the user gives suck query
-            defaultSearch.ll = `${tripLat},${tripLong}`; 
-            defaultSearch.radius = 10000; //10km as a safety
-            defaultSearch.limit = 10; //limit of 10 for testing
-            defaultSearch.exclude_all_chains = true;
-            defaultSearch.categories = "10000,13000,16000"; // arts/entertainment, landmarks, food
-            defaultSearch.fields = "name,location,description,website,hours,rating,tips";
-            defaultSearch.sort = "RATING";
+                    setLastResponse(aiResponse);
+                    setStep(4);
+                } catch (error) {
+                    console.error('Error during step 3:', error);
+                    aiResponse = 'Sorry, there was an error creating your itinerary. Please try again.';
+                }
+            } else if (step === 4) {
+                try {
+                    const now = new Date();
+                    const jsonString = JSON.stringify(jsonResponse, null, 2);
+                    const jsonStringDefault = JSON.stringify(jsonResponseDefault, null, 2);
 
-            jsonResponse = await placesSearch(search); //saving the json response from a foursquare search
-            //placesList = extractPlaceInfo(jsonResponse); //taking the important bits out to send to gpt...it was unused
-            console.log("\n THE JSON RESPONSE IS: \n");
-            console.log(jsonResponse);
+                    aiResponse = await fetchAIResponse(
+                        `The user would like you to change the schedule to fit these criteria: ${inputText}. ` +
+                        `Your last schedule was ${lastResponse} \n Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. ` +
+                        `The schedule should make sense (multiple of the same type of location in a day is strange - there should not be two parks, or two museums). ` +
+                        `The current time is ${now}, so consider the time and distance between locations when choosing the locations. ` +
+                        `Prioritize, but do not exclusively choose from these locations: ${jsonString} . ` +
+                        `Use the following locations as backup and supplemental: ${jsonStringDefault}`
+                    );
 
-            jsonResponseDefault = await placesSearch(defaultSearch); 
-            //placesList = extractPlaceInfo(jsonResponse); //taking the important bits out to send to gpt...it was unused
-            console.log("\n THE DEFAULT RESPONSE IS: \n");
-            console.log(jsonResponseDefault);
+                    setLastResponse(aiResponse);
+                } catch (error) {
+                    console.error('Error during step 4:', error);
+                    aiResponse = 'Sorry, there was an error updating your itinerary. Please try again.';
+                }
+            }
 
-            //console.log("\n THE PLACES LIST IS: \n");    //basically just trying to limit tokens given to gpt, but it hasnt mattered much so far...i jsut want to gmake sure gpt understands what attributes belong to which place
-            //console.log(placesList);
+            // Add AI response to chat
+            if (aiResponse) {
+                setChat(prevChat => [...prevChat, { text: aiResponse, fromAI: true }]);
+            }
 
-
-
-            aiResponse = `Great! You chose: ${inputText}. How long do you have to explore?`;
-            setStep(3);
-        } else if (step === 3) {
-            tripLength = inputText;
-            const now = new Date(); //the current time
-            //send all results to gpt and ask them to make a schedule using the results (maybe add more results too like restaurants or popular stuff if user asks for long schedule or doesn't give enough to work with to fill time)
-            const jsonString = JSON.stringify(jsonResponse, null, 2);
-            const jsonStringDefault = JSON.stringify(jsonResponseDefault, null, 2);
-            console.log(tripLocation);
-            console.log(jsonResponse);
-            console.log(`\n\n\n\n Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. The schedule should make sense with food at appropriate times (multiple of the same type of location in a day is strange - there should not be two parks, or two museums). The current time is ${now}, so consider the time and distance between locations when choosing the locations. Priorotize, but do not exclusively choose from these locations: {jsonString} . Use the following locations as backup and supplemental: {jsonStringDefault}\n\n`);
-            aiResponse = await fetchAIResponse(`Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. The schedule should make sense. Food should be at appropriate times and multiple of the same type of location in a day is strange - there should not be two parks, or two museums or two restaurants unless they are 4+ hours apart. Additionally, consider the location's operation times and do not recommend it if it is closed when you recommend it. The current time is ${now}, so consider the time and distance between locations when choosing the locations. Priorotize, but do not exclusively choose from these locations: ${jsonString} . Use the following locations as backup and supplemental: ${jsonStringDefault}`); //this will change a bunch....
-            lastResponse = aiResponse;
-            setStep(4);
-        } else if (step === 4) {
-            const userFeedback = inputText;  //the user feedback
-            const now = new Date(); //the current time
-            const jsonString = JSON.stringify(jsonResponse, null, 2); //probably make global or outer scope...would only reduce need for stingify over again
-            const jsonStringDefault = JSON.stringify(jsonResponseDefault, null, 2); //probably make global or outer scope
-            
-            
-            
-            aiResponse = await fetchAIResponse(`The user would like you to change the schedule to fit these criteria: ${userFeedback}. Your last schedule was ${lastResponse} \n Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. The schedule should make sense (multiple of the same type of location in a day is strange - there should not be two parks, or two museums). The current time is ${now}, so consider the time and distance between locations when choosing the locations. Priorotize, but do not exclusively choose from these locations: ${jsonString} . Use the following locations as backup and supplemental: ${jsonStringDefault}`);
-            console.log(`The user would like you to change the schedule to fit these criteria: ${userFeedback}. Your last schedule was ${lastResponse} \n Make a schedule for a trip in ${tripLocation} lasting ${tripLength}. The schedule should make sense (multiple of the same type of location in a day is strange - there should not be two parks, or two museums). The current time is ${now}, so consider the time and distance between locations when choosing the locations. Priorotize, but do not exclusively choose from these locations: ${jsonString} . Use the following locations as backup and supplemental: ${jsonStringDefault}`);
-            lastResponse = aiResponse; //sends the last schedule with the feedback and same directions
-            //unfortunately, API request seem to be "stateless" so they don't remember conversation. (you have to resend the earlier conversations) This is a yucky method of doing this for now
-        
+        } catch (error) {
+            console.error('Error in sendMessage:', error);
+            setChat(prevChat => [...prevChat, {
+                text: 'Sorry, something went wrong. Please try again.',
+                fromAI: true
+            }]);
         }
 
-        setChat([
-            ...chat,
-            { text: inputText, fromAI: false },
-            { text: aiResponse, fromAI: true }
-        ]);
-
+        // Clear input
         setInputText('');
     };
 
     const renderMessage = (message: { text: string, fromAI: boolean }) => {
+        if (!message || !message.text) return null;
+    
         if (message.fromAI && message.text.includes('[ITINERARY_START]')) {
             const itineraryContent = message.text
                 .replace('[ITINERARY_START]\n', '')
                 .replace('\n[ITINERARY_END]', '')
-                .split('\n\n');
+                .split('\n\n')
+                .filter(Boolean);
     
             return (
                 <View style={styles.itineraryContainer}>
                     {itineraryContent.map((item, index) => {
+                        if (!item) return null;
                         const [timeLine, metaLine, description] = item.split('\n');
                         const [time, locationAndAddress] = timeLine.split(' - ');
                         const [location, address] = locationAndAddress.split(' - ');
-                        
+    
                         const rating = metaLine.match(/\[RATING: (.*?)\/5\]/)?.[1];
                         const hours = metaLine.match(/\[HOURS: (.*?)\]/)?.[1];
                         const formattedHours = hours ? formatHours(hours) : null;
-                        
+    
+                        // Add safety checks for rating
+                        const numericRating = rating ? parseFloat(rating) : 0;
+                        const validRating = !isNaN(numericRating) && isFinite(numericRating) 
+                            ? Math.max(0, Math.min(5, numericRating)) 
+                            : 0;
+                        const filledStars = Math.round(validRating);
+                        const emptyStars = 5 - filledStars;
+    
                         return (
                             <View key={index} style={styles.itineraryItem}>
                                 <Text style={styles.itineraryTime}>{time}</Text>
@@ -325,8 +400,8 @@ const BuildYourDay: React.FC = () => {
                                 <View style={styles.metaContainer}>
                                     {rating && (
                                         <Text style={styles.rating}>
-                                            {'★'.repeat(Math.round(Number(rating)))}
-                                            {'☆'.repeat(5 - Math.round(Number(rating)))}
+                                            {'★'.repeat(Math.max(0, filledStars))}
+                                            {'☆'.repeat(Math.max(0, emptyStars))}
                                         </Text>
                                     )}
                                     {formattedHours && (
@@ -339,10 +414,16 @@ const BuildYourDay: React.FC = () => {
                             </View>
                         );
                     })}
+                    <TouchableOpacity 
+                        style={styles.saveButton}
+                        onPress={() => saveItinerary(itineraryContent.join('\n\n'))}
+                    >
+                        <Text style={styles.saveButtonText}>Save Itinerary</Text>
+                    </TouchableOpacity>
                 </View>
             );
         }
-
+    
         return (
             <View style={message.fromAI ? styles.aiMessage : styles.userMessage}>
                 <Text>{message.text}</Text>
@@ -354,7 +435,7 @@ const BuildYourDay: React.FC = () => {
         // Get current day of week (0 = Sunday, 1 = Monday, etc.)
         const today = new Date().getDay();
         const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        
+
         try {
             if (hoursString.includes(';')) {
                 const dayHours = hoursString.split(';').map(s => s.trim());
@@ -493,6 +574,16 @@ const BuildYourDay: React.FC = () => {
             fontSize: 14,
             fontStyle: 'italic',
         },
+        rateLimitMessage: {
+            backgroundColor: '#ffeaa7',
+            padding: 10,
+            borderRadius: 8,
+            marginVertical: 10,
+        },
+        rateLimitText: {
+            color: '#d35400',
+            textAlign: 'center',
+        },
     });
 
     return (
@@ -507,6 +598,14 @@ const BuildYourDay: React.FC = () => {
                         </React.Fragment>
                     ))}
                 </ScrollView>
+
+                {isRateLimited && (
+                    <View style={styles.rateLimitMessage}>
+                        <Text style={styles.rateLimitText}>
+                            We're experiencing high traffic. Please wait a moment before trying again.
+                        </Text>
+                    </View>
+                )}
 
                 <View style={styles.inputContainer}>
                     <TextInput
