@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator, Image, TouchableOpacity } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useRoute } from '@react-navigation/native';
@@ -14,12 +14,14 @@ const Geocode_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEOENCODING_API_KEY;
 const ResultsPage = () => {
     const route = useRoute();
     const { selectedActivities, city, latitude, longitude } = route.params; // Pull the latitude and longitude from route params
+    const [selectedLocation, setSelectedLocation] = useState(null);
 
     const { savedLocations, isSaved } = useSavedLocationsListener();
 
     const [locations, setLocations] = useState([]);
     const [cityCoordinates, setCityCoordinates] = useState(null);
     const [loading, setLoading] = useState(true);
+    const mapRef = useRef(null);
 
     useEffect(() => {
         const fetchActivityLocations = async () => {
@@ -122,29 +124,55 @@ const ResultsPage = () => {
         }
     };
 
+    const handleLocationSelect = (location) => {
+        setSelectedLocation(location);
+
+        // Animate map to selected location
+        mapRef.current?.animateToRegion({
+            latitude: parseFloat(location.latitude),
+            longitude: parseFloat(location.longitude),
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+        }, 1000); // 1000ms animation duration
+    };
+
     return (
         <View style={styles.container}>
             {loading ? (
                 <ActivityIndicator size="large" color="#00b894" style={styles.loader} />
             ) : (
                 <>
-                    {/* Map Section - Top Half */}
+                    {console.log('All locations:', locations)}
+                    {console.log('First location:', locations[0])}
                     <MapView
+                        ref={mapRef}
                         style={styles.map}
                         initialRegion={{
-                            latitude: latitude,
-                            longitude: longitude,
+                            latitude: parseFloat(latitude),
+                            longitude: parseFloat(longitude),
                             latitudeDelta: 0.05,
                             longitudeDelta: 0.05,
                         }}
                     >
-                        {locations.map((location, index) => (
-                            <Marker
-                                key={index}
-                                coordinate={{ latitude: location.latitude, longitude: location.longitude }}
-                                title={location.label}
-                            />
-                        ))}
+                        {locations.map((location, index) => {
+                            console.log('Rendering marker:', {
+                                index,
+                                latitude: location.latitude,
+                                longitude: location.longitude,
+                                isNumber: !isNaN(parseFloat(location.latitude)) && !isNaN(parseFloat(location.longitude))
+                            });
+                            return (
+                                <Marker
+                                    key={index}
+                                    coordinate={{
+                                        latitude: parseFloat(location.latitude),
+                                        longitude: parseFloat(location.longitude)
+                                    }}
+                                    title={location.label}
+                                    pinColor={selectedLocation?.label === location.label ? '#00b894' : 'red'}
+                                />
+                            );
+                        })}
                     </MapView>
 
                     <ScrollView style={styles.resultsContainer}>
@@ -157,7 +185,14 @@ const ResultsPage = () => {
                                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                         {filteredLocations.length > 0 ? (
                                             filteredLocations.map((location, index) => (
-                                                <View key={index} style={styles.activityCard}>
+                                                <TouchableOpacity
+                                                    key={index}
+                                                    style={[
+                                                        styles.activityCard,
+                                                        selectedLocation?.label === location.label && styles.selectedCard
+                                                    ]}
+                                                    onPress={() => handleLocationSelect(location)}
+                                                >
                                                     <Text style={styles.activityLabel}>{location.label}</Text>
                                                     <View style={styles.categoryTags}>
                                                         {location.categories.map((category, idx) => (
@@ -175,10 +210,18 @@ const ResultsPage = () => {
                                                             {location.description}
                                                         </Text>
                                                     )}
-                                                    <TouchableOpacity onPress={() => saveLocation(location)}>
-                                                        <Image source={SaveIcon} style={{ width: 20, height: 20, marginTop: 5 }} />
+                                                    <TouchableOpacity
+                                                        onPress={(e) => {
+                                                            e.stopPropagation(); // Prevent triggering parent TouchableOpacity
+                                                            handleToggleSave(location);
+                                                        }}
+                                                    >
+                                                        <Image
+                                                            source={SaveIcon}
+                                                            style={{ width: 20, height: 20, marginTop: 5 }}
+                                                        />
                                                     </TouchableOpacity>
-                                                </View>
+                                                </TouchableOpacity>
                                             ))
                                         ) : (
                                             <Text style={styles.noDataText}>No data available for {activity}</Text>
@@ -276,6 +319,10 @@ const styles = StyleSheet.create({
         color: '#00b894',
         marginBottom: 8,
         fontWeight: '500',
+    },
+    selectedCard: {
+        borderColor: '#00b894',
+        borderWidth: 2,
     },
 });
 
