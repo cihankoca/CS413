@@ -23,56 +23,64 @@ const ResultsPage = () => {
     const [loading, setLoading] = useState(true);
     const mapRef = useRef(null);
 
-    useEffect(() => {
-        const fetchActivityLocations = async () => {
-            setLoading(true);
-            try {
-                const activityPromises = selectedActivities.map(async (activity) => {
-                    const url = `https://api.foursquare.com/v3/places/search?query=${activity}&limit=5&near=${city}`;
-                    const response = await fetch(url, {
+    const [limit, setLimit] = useState(5);
+    const [radius, setRadius] = useState(22000);
+    let curLat = latitude;
+    let curLong = longitude; 
+
+    const fetchActivityLocations = async () => {
+        setLoading(true);
+        try {
+            const activityPromises = selectedActivities.map(async (activity) => {
+                const url = `https://api.foursquare.com/v3/places/search?query=${activity}&ll=${curLat}%2C${curLong}&radius=${radius}&exclude_all_chains=true&sort=DISTANCE&limit=${limit}`
+                //const url = `https://api.foursquare.com/v3/places/search?query=${activity}&radius=${radius}&limit=${limit}&near=${city}`;
+                const response = await fetch(url, {
+                    headers: {
+                        Authorization: FOURSQUARE_API_KEY,
+                    },
+                });
+                const data = await response.json();
+
+                if (!data.results || data.results.length === 0) {
+                    console.warn(`No results found for activity: ${activity}`);
+                    return [];
+                }
+
+                const placesWithDetails = await Promise.all(data.results.map(async (place) => {
+                    const detailsUrl = `https://api.foursquare.com/v3/places/${place.fsq_id}`;
+                    const detailsResponse = await fetch(detailsUrl, {
                         headers: {
                             Authorization: FOURSQUARE_API_KEY,
                         },
                     });
-                    const data = await response.json();
+                    const detailsData = await detailsResponse.json();
 
-                    if (!data.results || data.results.length === 0) {
-                        console.warn(`No results found for activity: ${activity}`);
-                        return [];
-                    }
+                    return {
+                        latitude: place.geocodes.main.latitude,
+                        longitude: place.geocodes.main.longitude,
+                        label: place.name,
+                        category: activity,
+                        description: detailsData.description || 'No description available.',
+                        address: detailsData.location?.formatted_address || 'Address not available',
+                        categories: detailsData.categories?.map(cat => cat.name) || [],
+                        hours: detailsData.closed_bucket || 'Hours not available',
+                    };
+                }));
 
-                    const placesWithDetails = await Promise.all(data.results.map(async (place) => {
-                        const detailsUrl = `https://api.foursquare.com/v3/places/${place.fsq_id}`;
-                        const detailsResponse = await fetch(detailsUrl, {
-                            headers: {
-                                Authorization: FOURSQUARE_API_KEY,
-                            },
-                        });
-                        const detailsData = await detailsResponse.json();
+                return placesWithDetails;
+            });
 
-                        return {
-                            latitude: place.geocodes.main.latitude,
-                            longitude: place.geocodes.main.longitude,
-                            label: place.name,
-                            category: activity,
-                            description: detailsData.description || 'No description available.',
-                            address: detailsData.location?.formatted_address || 'Address not available',
-                            categories: detailsData.categories?.map(cat => cat.name) || [],
-                            hours: detailsData.closed_bucket || 'Hours not available',
-                        };
-                    }));
+            const allLocations = await Promise.all(activityPromises);
+            setLocations(allLocations.flat().reverse());  //reversed so new stuff is at beginning of list
+        } catch (error) {
+            console.error('Error fetching locations:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-                    return placesWithDetails;
-                });
-
-                const allLocations = await Promise.all(activityPromises);
-                setLocations(allLocations.flat());
-            } catch (error) {
-                console.error('Error fetching locations:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
+    useEffect(() => {
+       
 
         fetchActivityLocations();
     }, [selectedActivities, city]);
@@ -134,6 +142,24 @@ const ResultsPage = () => {
             latitudeDelta: 0.05,
             longitudeDelta: 0.05,
         }, 1000); // 1000ms animation duration
+    };
+
+    const loadMoreResults = (activity) => 
+    {
+        
+        console.log(activity);
+        console.log(radius);
+        console.log(limit);
+
+
+
+        // I could adjust latitude and longitude as well
+        setRadius((prevRadius) => prevRadius + 3000);
+        setLimit((prevLimit) => prevLimit + 5);
+        fetchActivityLocations();
+
+
+
     };
 
     return (
@@ -226,6 +252,12 @@ const ResultsPage = () => {
                                         ) : (
                                             <Text style={styles.noDataText}>No data available for {activity}</Text>
                                         )}
+                                        <TouchableOpacity
+                                            style={styles.loadMoreButton}
+                                            onPress={() => loadMoreResults(activity)}
+                                        >
+                                            <Text style={styles.loadMoreText}>Load More</Text>
+                                        </TouchableOpacity>
                                     </ScrollView>
                                 </View>
                             );
@@ -323,6 +355,20 @@ const styles = StyleSheet.create({
     selectedCard: {
         borderColor: '#00b894',
         borderWidth: 2,
+    },
+    loadMoreButton: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: 100,
+        height: 100,
+        marginLeft: 10,
+        borderRadius: 10,
+        backgroundColor: '#dfe6e9',
+    },
+    loadMoreText: {
+        fontSize: 14,
+        color: '#2d3436',
+        fontWeight: 'bold',
     },
 });
 
