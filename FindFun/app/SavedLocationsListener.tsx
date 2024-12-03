@@ -1,52 +1,53 @@
-import React, { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DeviceEventEmitter } from 'react-native';
 
-export const useSavedLocationsListener = () => {
-    const [savedLocations, setSavedLocations] = useState([]);
+export interface SavedLocation {
+    label: string;
+    description: string;
+    address: string;
+    rating: string;
+    hours: string;
+    time: string;
+    city: string;
+}
 
-    const getSavedLocations = async () => {
+export function useSavedLocationsListener() {
+    const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
+
+    const loadSavedLocations = async () => {
         try {
-            const locationsString = await AsyncStorage.getItem('savedLocations');
-            const locations = locationsString ? JSON.parse(locationsString) : [];
-            setSavedLocations(locations);
-            DeviceEventEmitter.emit('savedLocationsChanged', locations);
+            const savedData = await AsyncStorage.getItem('savedLocations');
+            setSavedLocations(savedData ? JSON.parse(savedData) : []);
         } catch (error) {
-            console.error('Failed to fetch saved locations:', error);
+            console.error('Error loading saved locations:', error);
+            setSavedLocations([]);
         }
     };
 
     useEffect(() => {
-        // İlk veri yüklemesi
-        getSavedLocations();
-
-        // Dinleyici ekleniyor
-        const listener = (locations) => {
-            setSavedLocations(locations);
-        };
-        const subscription = DeviceEventEmitter.addListener('savedLocationsChanged', listener);
-
-        // Dinleyici temizleniyor (component unmount sırasında)
-        return () => {
-            subscription.remove(); // Dinleyici kaldırılıyor
-        };
+        loadSavedLocations();
     }, []);
 
-    const isSaved = (location) => {
-        if (!savedLocations) {
-            return false;
+    const updateLocations = async (newLocations: SavedLocation[]) => {
+        try {
+            await AsyncStorage.setItem('savedLocations', JSON.stringify(newLocations));
+            setSavedLocations(newLocations);
+        } catch (error) {
+            console.error('Error saving locations:', error);
         }
-        return savedLocations.some((savedLocation) => savedLocation.label === location.label);
     };
 
-    return { savedLocations, isSaved };
-};
+    return {
+        savedLocations,
+        updateLocations,
+    };
+}
 
-export const updateSavedLocations = async (newLocations) => {
+// Export the update function separately if needed
+export async function updateSavedLocations(locations: SavedLocation[]) {
     try {
-        await AsyncStorage.setItem('savedLocations', JSON.stringify(newLocations));
-        DeviceEventEmitter.emit('savedLocationsChanged', newLocations);
+        await AsyncStorage.setItem('savedLocations', JSON.stringify(locations));
     } catch (error) {
-        console.error('Failed to update saved locations:', error);
+        console.error('Error saving locations:', error);
     }
-};
+}
