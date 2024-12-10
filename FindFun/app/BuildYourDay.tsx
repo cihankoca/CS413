@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, Dimensions, ImageBackground, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
-import { useSavedLocationsListener } from './SavedLocationsListener';
+import { updateSavedLocations, useSavedLocationsListener } from './SavedLocationsListener';
 
 const buildPageBackground = require('../assets/images/buildpage.png');
 
@@ -167,7 +167,7 @@ const BuildYourDay: React.FC = () => {
 
             const currentLocations = savedLocations || [];
             const updatedLocations = [...currentLocations, ...items];
-            await updateLocations(updatedLocations);
+            await updateSavedLocations(updatedLocations);
         } catch (error) {
             console.error('Failed to save itinerary:', error);
         }

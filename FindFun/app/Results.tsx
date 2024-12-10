@@ -18,17 +18,23 @@ const ResultsPage = () => {
 
     const { savedLocations, isSaved } = useSavedLocationsListener();
 
-    const { savedLocations, isSaved } = useSavedLocationsListener();
-
     const [locations, setLocations] = useState([]);
     const [cityCoordinates, setCityCoordinates] = useState(null);
     const [loading, setLoading] = useState(true);
     const mapRef = useRef(null);
+    const [markers, setMarkers] = useState([]);
+    const markerRefs = useRef({});
 
     const [limit, setLimit] = useState(5);
     const [radius, setRadius] = useState(22000);
     let curLat = latitude;
-    let curLong = longitude; 
+    let curLong = longitude;
+    const [region, setRegion] = useState({
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude),
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+    });
 
     const fetchActivityLocations = async () => {
         setLoading(true);
@@ -57,9 +63,13 @@ const ResultsPage = () => {
                     });
                     const detailsData = await detailsResponse.json();
 
+                    // Ensure coordinates are numbers
+                    const lat = Number(place.geocodes.main.latitude);
+                    const lng = Number(place.geocodes.main.longitude);
+
                     return {
-                        latitude: place.geocodes.main.latitude,
-                        longitude: place.geocodes.main.longitude,
+                        latitude: lat,
+                        longitude: lng,
                         label: place.name,
                         category: activity,
                         description: detailsData.description || 'No description available.',
@@ -73,7 +83,29 @@ const ResultsPage = () => {
             });
 
             const allLocations = await Promise.all(activityPromises);
-            setLocations(allLocations.flat().reverse());  //reversed so new stuff is at beginning of list
+            const flattenedLocations = allLocations.flat().reverse();
+            setLocations(flattenedLocations);
+
+            const newMarkers = flattenedLocations.map(location => ({
+                coordinate: {
+                    latitude: Number(location.latitude),
+                    longitude: Number(location.longitude)
+                },
+                title: location.label,
+                isSelected: selectedLocation?.label === location.label
+            }));
+
+            setMarkers(newMarkers);
+
+            // Redraw all markers after a short delay
+            setTimeout(() => {
+                Object.values(markerRefs.current).forEach(ref => {
+                    if (ref) {
+                        ref.redraw();
+                    }
+                });
+            }, 100);
+
         } catch (error) {
             console.error('Error fetching locations:', error);
         } finally {
@@ -81,11 +113,77 @@ const ResultsPage = () => {
         }
     };
 
+    const fetchMoreLocations = async (activity) => {
+        try {
+            const url = `https://api.foursquare.com/v3/places/search?query=${activity}&ll=${curLat}%2C${curLong}&radius=${radius}&exclude_all_chains=true&sort=DISTANCE&limit=${limit}`;
+            const response = await fetch(url, {
+                headers: {
+                    Authorization: FOURSQUARE_API_KEY,
+                },
+            });
+            const data = await response.json();
+
+            if (!data.results || data.results.length === 0) {
+                console.warn(`No additional results found for activity: ${activity}`);
+                return [];
+            }
+
+            const newPlacesWithDetails = await Promise.all(data.results.map(async (place) => {
+                const detailsUrl = `https://api.foursquare.com/v3/places/${place.fsq_id}`;
+                const detailsResponse = await fetch(detailsUrl, {
+                    headers: {
+                        Authorization: FOURSQUARE_API_KEY,
+                    },
+                });
+                const detailsData = await detailsResponse.json();
+
+                return {
+                    latitude: Number(place.geocodes.main.latitude),
+                    longitude: Number(place.geocodes.main.longitude),
+                    label: place.name,
+                    category: activity,
+                    description: detailsData.description || 'No description available.',
+                    address: detailsData.location?.formatted_address || 'Address not available',
+                    categories: detailsData.categories?.map(cat => cat.name) || [],
+                    hours: detailsData.closed_bucket || 'Hours not available',
+                };
+            }));
+
+            // Filter out any locations that we already have
+            const existingLabels = locations.map(loc => loc.label);
+            const uniqueNewLocations = newPlacesWithDetails.filter(
+                loc => !existingLabels.includes(loc.label)
+            );
+
+            // Update locations and markers states by appending new data
+            setLocations(prevLocations => [...prevLocations, ...uniqueNewLocations]);
+
+            // Create new markers only for the new locations
+            const newMarkers = uniqueNewLocations.map(location => ({
+                coordinate: {
+                    latitude: Number(location.latitude),
+                    longitude: Number(location.longitude)
+                },
+                title: location.label,
+                isSelected: selectedLocation?.label === location.label
+            }));
+
+            setMarkers(prevMarkers => [...prevMarkers, ...newMarkers]);
+
+        } catch (error) {
+            console.error('Error fetching more locations:', error);
+        }
+    };
+
     useEffect(() => {
-       
+
 
         fetchActivityLocations();
     }, [selectedActivities, city]);
+
+    useEffect(() => {
+        console.log('Current markers:', markers); // Debug log
+    }, [markers]);
 
     // Toggle Save/Unsave Location
     const handleToggleSave = useCallback(async (location) => {
@@ -137,18 +235,27 @@ const ResultsPage = () => {
     const handleLocationSelect = (location) => {
         setSelectedLocation(location);
 
+        // Update markers to reflect new selection
+        setMarkers(prevMarkers =>
+            prevMarkers.map(marker => ({
+                ...marker,
+                isSelected: marker.title === location.label
+            }))
+        );
+
         // Animate map to selected location
-        mapRef.current?.animateToRegion({
+        const newRegion = {
             latitude: parseFloat(location.latitude),
             longitude: parseFloat(location.longitude),
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-        }, 1000); // 1000ms animation duration
+            latitudeDelta: 0.02,
+            longitudeDelta: 0.02,
+        };
+
+        mapRef.current?.animateToRegion(newRegion, 1000);
     };
 
-    const loadMoreResults = (activity) => 
-    {
-        
+    const loadMoreResults = (activity) => {
+
         console.log(activity);
         console.log(radius);
         console.log(limit);
@@ -158,7 +265,7 @@ const ResultsPage = () => {
         // I could adjust latitude and longitude as well
         setRadius((prevRadius) => prevRadius + 3000);
         setLimit((prevLimit) => prevLimit + 5);
-        fetchActivityLocations();
+        fetchMoreLocations(activity);
 
 
 
@@ -170,37 +277,20 @@ const ResultsPage = () => {
                 <ActivityIndicator size="large" color="#00b894" style={styles.loader} />
             ) : (
                 <>
-                    {console.log('All locations:', locations)}
-                    {console.log('First location:', locations[0])}
                     <MapView
                         ref={mapRef}
                         style={styles.map}
-                        initialRegion={{
-                            latitude: parseFloat(latitude),
-                            longitude: parseFloat(longitude),
-                            latitudeDelta: 0.05,
-                            longitudeDelta: 0.05,
-                        }}
+                        initialRegion={region}
                     >
-                        {locations.map((location, index) => {
-                            console.log('Rendering marker:', {
-                                index,
-                                latitude: location.latitude,
-                                longitude: location.longitude,
-                                isNumber: !isNaN(parseFloat(location.latitude)) && !isNaN(parseFloat(location.longitude))
-                            });
-                            return (
-                                <Marker
-                                    key={index}
-                                    coordinate={{
-                                        latitude: parseFloat(location.latitude),
-                                        longitude: parseFloat(location.longitude)
-                                    }}
-                                    title={location.label}
-                                    pinColor={selectedLocation?.label === location.label ? '#00b894' : 'red'}
-                                />
-                            );
-                        })}
+                        {markers.map((marker, index) => (
+                            <Marker
+                                key={`marker-${index}-${marker.title}`}
+                                coordinate={marker.coordinate}
+                                title={marker.title}
+                                pinColor={marker.isSelected ? '#00b894' : 'red'}
+                                tracksViewChanges={true}
+                            />
+                        ))}
                     </MapView>
 
                     <ScrollView style={styles.resultsContainer}>
@@ -277,8 +367,13 @@ const styles = StyleSheet.create({
         backgroundColor: '#f9f9f9',
     },
     map: {
+        height: '50%',
+        width: '100%',
+    },
+    mapContainer: {
         width: '100%',
         height: '50%',
+        position: 'relative',
     },
     loader: {
         flex: 1,
@@ -286,6 +381,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     resultsContainer: {
+        flex: 1,
         paddingHorizontal: 10,
         paddingTop: 10,
         backgroundColor: '#fff',

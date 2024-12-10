@@ -24,16 +24,19 @@ const Account = () => {
                 <TouchableOpacity style={styles.button} onPress={() => { }}>
                     <MaterialIcons name="account-circle" size={24} color="#333" />
                     <Text style={styles.buttonText}>Profile</Text>
+                    <Text style={[styles.buttonText, styles.comingSoon]}>Coming Soon!</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.button} onPress={() => { }}>
                     <MaterialIcons name="event" size={24} color="#333" />
                     <Text style={styles.buttonText}>Plans</Text>
+                    <Text style={[styles.buttonText, styles.comingSoon]}>Coming Soon!</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.button} onPress={() => { }}>
                     <MaterialIcons name="history" size={24} color="#333" />
                     <Text style={styles.buttonText}>Trip History</Text>
+                    <Text style={[styles.buttonText, styles.comingSoon]}>Coming Soon!</Text>
                 </TouchableOpacity>
 
 
@@ -48,6 +51,7 @@ const Account = () => {
                 <TouchableOpacity style={styles.button} onPress={() => { }}>
                     <MaterialIcons name="settings" size={24} color="#333" />
                     <Text style={styles.buttonText}>Settings</Text>
+                    <Text style={[styles.buttonText, styles.comingSoon]}>Coming Soon!</Text>
                 </TouchableOpacity>
 
             </View>
@@ -94,7 +98,6 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 5,
     },
-
     buttonText: {
         color: '#333',
         fontSize: 18,
@@ -103,4 +106,12 @@ const styles = StyleSheet.create({
         textAlign: 'left',
         flex: 1,
     },
+    comingSoon: {
+        color: '#f88',
+        fontSize: 14,
+        fontStyle: 'italic',
+        textAlign: 'right',
+        flex: 0,
+        marginRight: 10,
+    }
 });

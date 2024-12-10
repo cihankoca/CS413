@@ -18,17 +18,21 @@ export const useSavedLocationsListener = () => {
 
     useEffect(() => {
         // İlk veri yüklemesi
+        // Initial data loading
         getSavedLocations();
 
         // Dinleyici ekleniyor
+        // Adding listener
         const listener = (locations) => {
             setSavedLocations(locations);
         };
         const subscription = DeviceEventEmitter.addListener('savedLocationsChanged', listener);
 
         // Dinleyici temizleniyor (component unmount sırasında)
+        // Cleaning up listener (during component unmount)
         return () => {
             subscription.remove(); // Dinleyici kaldırılıyor
+                                 // Removing listener
         };
     }, []);
 

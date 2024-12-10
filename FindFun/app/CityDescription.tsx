@@ -123,69 +123,9 @@ const CityScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Fullscreen image with city name overlay */}
-      <ImageBackground
-        source={require('../assets/images/description.webp')}
-        style={styles.imageContainer}
-        resizeMode="cover"
-      >
-        <Animated.View
-          style={[
-            styles.overlay,
-            {
-              transform: [
-                {
-                  translateY: animation.interpolate({
-                    inputRange: [0, screenHeight * 0.6],
-                    outputRange: [0, -150], // Move up as the tab moves up
-                    extrapolate: 'clamp',
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Text style={styles.cityTitle}>{city}</Text>
-        </Animated.View>
-      </ImageBackground>
-
-      {/* Navigation bar at the bottom */}
-      <View style={styles.navBar}>
-        {/* Back Button */}
-        <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back" size={28} color="#fff" />
-        </TouchableOpacity>
-
-        {/* Activity Choice Button */}
-        <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => navigation.push('ActivityChoice', { city })} // Pass the city to ActivityChoice
-        >
-          <FontAwesome name="male" size={28} color="#fff" />
-        </TouchableOpacity>
-
-      </View>
-
-      {/* Pull-up tab for description positioned directly below the navigation bar */}
-      <Animated.View
-        {...panResponder.panHandlers}
-        style={[
-          styles.descriptionContainer,
-          {
-            height: animation.interpolate({
-              inputRange: [0, screenHeight * 0.6],
-              outputRange: [140, screenHeight * 0.6],
-              extrapolate: 'clamp',
-            }),
-          },
-        ]}
-      >
-        <View style={styles.pullTab}>
-          <View style={styles.pullIndicator} />
-          <Text style={styles.pullTabText}>Description of {city}</Text>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0000ff" />
         </View>
       ) : (
         <>
@@ -234,7 +174,7 @@ const CityScreen = () => {
             </TouchableOpacity>
           </View>
   
-          {/* Pull-up tab for description positioned directly below the navigation bar */}
+          {/* Pull-up tab for description */}
           <Animated.View
             {...panResponder.panHandlers}
             style={[
