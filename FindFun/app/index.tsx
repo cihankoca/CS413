@@ -4,7 +4,6 @@ import { ThemedText } from '@/components/ThemedText';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { initDatabase, addItinerary, addEvent, getItineraries, getEventsForItinerary } from '@/utils/database';
-import * as SQLite from 'expo-sqlite';
 
 const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose', 'Boston'];
 
@@ -23,7 +22,7 @@ const WelcomeScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredCities, setFilteredCities] = useState([]);
   const [location, setLocation] = useState<LocationObject | null>(null);
-  const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
+  const [db, setDb] = useState<any>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
 
   async function foursquareTest()
